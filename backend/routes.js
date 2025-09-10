@@ -7,6 +7,7 @@ import { createCrud } from '@api-craft/crud-router';
 import {Place} from './app/models/place.model.js';
 import {Event} from './app/models/event.model.js';
 import {Guide} from './app/models/guide.model.js';
+import { getNearbyPlaces } from './app/controllers/place.controller.js';
 
 
 const router = Router();
@@ -20,5 +21,7 @@ router.post('/logout', requireAuth, logout);
 router.use('/places', createCrud(Place));
 router.use('/events', createCrud(Event));
 router.use('/guides', createCrud(Guide));
+
+router.get('/near/places',getNearbyPlaces);
 
 export default router;
