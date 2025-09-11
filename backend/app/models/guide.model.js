@@ -8,7 +8,6 @@ const guideSchema = new mongoose.Schema(
     gender: { type: String, enum: ["male", "female", "other"] },
     address : { type: addressSchema, required: true },
     languages: { type: [String], required: true },
-    rating: { type: Number, min: 0, max: 5 },
     contactInfo: { type: String }
   },
   {
