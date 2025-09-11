@@ -1,19 +1,55 @@
-import mongoose from 'mongoose';
+import mongoose from "mongoose";
+import addressSchema from "./address.schema.js";
 
-const locationSchema = new mongoose.Schema({
- lat: { type: Number, required: true },
- lon: { type: Number, required: true }
-}, { _id: false });
+const feeSchema = new mongoose.Schema(
+  {
+    required: { type: Boolean, default: false },
+    amount: { type: Number, default: 0 }, // currency amount (use decimals as needed)
+    currency: { type: String, default: "LKR" },
+    notes: { type: String, default: "" },
+  },
+  { _id: false }
+);
 
-const placeSchema = new mongoose.Schema({
+const visitTimeSchema = new mongoose.Schema(
+  {
+    minMinutes: { type: Number, default: 30 },
+    maxMinutes: { type: Number, default: 90 },
+  },
+  { _id: false }
+);
+
+const placeSchema = new mongoose.Schema(
+  {
     name: { type: String, required: true },
-    address: { type: String, required: true },
-    location: { type: locationSchema, required: true },
-    openingHours: { type: String },
-    description: { type: String },
-    category: { type: String },
-},{
-    timestamps: true
-});
+    description: { type: String, default: "" },
+    category: { type: String, default: "" },
+    image: { type: String, default: "" },
+    address: { type: addressSchema, required: true },
 
-export const Place = mongoose.model('Place', placeSchema);
+    location: {
+      type: {
+        type: String,
+        enum: ["Point"],
+        required: true,
+        default: "Point",
+      },
+      coordinates: {
+        type: [Number], // [longitude, latitude]
+        required: true,
+      },
+    },
+
+    openingHours: { type: String, default: "" },
+
+    fees: { type: feeSchema, default: () => ({}) },
+
+    visitDuration: { type: visitTimeSchema, default: () => ({}) },
+  },
+  { timestamps: true }
+);
+
+// 2dsphere index for geo queries
+placeSchema.index({ location: "2dsphere" });
+
+export const Place = mongoose.model("Place", placeSchema);
