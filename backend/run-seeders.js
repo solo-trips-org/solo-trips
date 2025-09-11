@@ -4,10 +4,16 @@ dotenv.config();
 import mongoose from 'mongoose';
 import { connectDB } from './config/db.js';
 import { seedPlaces } from './app/seeders/places.seed.js';
+import { seedHotels } from './app/seeders/hotels.seed.js';
+import { seedEvents } from './app/seeders/events.seed.js';
+import { seedGuides } from './app/seeders/guides.seed.js';
 
 // Seeder map
 const seeders = {
-  places: seedPlaces
+  places: seedPlaces,
+  hotels: seedHotels,
+  events: seedEvents,
+  guides: seedGuides
 };
 
 // Clear all collections
