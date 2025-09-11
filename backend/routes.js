@@ -34,7 +34,7 @@ router.post("/new-otp", newOTP);
 router.post("/forget-password", forgetPassword);
 router.post("/reset-password", resetPassword);
 
-router.use("/places", requireAuth, allowedRoles("admin"), createCrud(Place));
+router.use("/places", createCrud(Place));
 router.use("/events", requireAuth, allowedRoles("admin"), createCrud(Event));
 router.use("/guides", requireAuth, allowedRoles("admin"), createCrud(Guide));
 router.use("/users", requireAuth, allowedRoles("admin"), createCrud(User));
