@@ -15,7 +15,7 @@ export const getNearbyPlaces = async (req, res) => {
         const places = await Place.find({
             location: {
                 $geoWithin: {
-                    $centerSphere: [[longitude, latitude], distance / 3963.2]
+                    $centerSphere: [[longitude, latitude], distance / 6378.1]
                 }
             }
         });
