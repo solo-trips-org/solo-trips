@@ -32,6 +32,8 @@
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.15.2",
     "neo4j-driver": "^5.28.1",
+    "nodemailer": "^7.0.6",
+    "otp-generator": "^4.0.1",
     "vitest": "^3.2.4"
   },
   "devDependencies": {
@@ -44,6 +46,6 @@
     "lint": "eslint .",
     "dev": "nodemon server.js --ext js,yaml",
     "start": "node server.js",
-    "seed":"node run-seeders.js"
+    "seed": "node run-seeders.js"
   }
 }
