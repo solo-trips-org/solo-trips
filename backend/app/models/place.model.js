@@ -24,7 +24,7 @@ const placeSchema = new mongoose.Schema(
     name: { type: String, required: true },
     description: { type: String, default: "" },
     category: { type: String, default: "" },
-
+    image: { type: String, default: "" },
     address: { type: addressSchema, required: true },
 
     location: {
