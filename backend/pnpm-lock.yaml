@@ -12,8 +12,8 @@ importers:
         specifier: ^1.0.1
         version: 1.0.1
       '@api-craft/crud-router':
-        specifier: ^1.0.4
-        version: 1.1.2
+        specifier: ^2.1.2
+        version: 2.1.2
       bcrypt:
         specifier: ^6.0.0
         version: 6.0.0
@@ -63,8 +63,8 @@ packages:
   '@api-craft/cache@1.0.1':
     resolution: {integrity: sha512-qYu2T8lsRyaAToIp1fcPtGAToRC0CzyxDNSoY0N2NH7ft8eE5pOc0XUS1P3/g/szzpu6diDoce3+S/UNf5QCug==}
 
-  '@api-craft/crud-router@1.1.2':
-    resolution: {integrity: sha512-CMElWHnCU1VkjuA+iy7FsYVgYpSVwmi0KV3OqoxTlylNZ0hSkhfZxCngBdQNIUvn9NHKuwK3QZB8YcMjvksypQ==}
+  '@api-craft/crud-router@2.1.2':
+    resolution: {integrity: sha512-VvaCRMOSDwBmoRpQWq4fhBEYAOFmrgS8t0Qha47Uxs7JYzkvaLbiLrz4PA9TOTHsGU0Z+mu7OkTshvEUv4oyug==}
 
   '@esbuild/aix-ppc64@0.25.9':
     resolution: {integrity: sha512-OaGtL73Jck6pBKjNIe24BnFE6agGl+6KxDtTfHhy1HmhthfKouEcOhqpSL64K4/0WCtbKFLOdzD/44cJ4k9opA==}
@@ -1484,7 +1484,7 @@ snapshots:
       memcached: 2.2.2
       redis: 4.7.1
 
-  '@api-craft/crud-router@1.1.2':
+  '@api-craft/crud-router@2.1.2':
     dependencies:
       express: 5.1.0
       mongoose: 8.18.0

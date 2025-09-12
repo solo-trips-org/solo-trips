@@ -126,7 +126,9 @@ export const sendOTP = async (req, res) => {
   try {
     const { email } = req.body;
     const user = await User.findOne({ email });
-    
+    if(!user){
+      return res.status(404).json({success: true, message: "User with this mail not found"})
+    }
       const otp = otpGenerator.generate(6, {
         upperCaseAlphabets: false,
         specialChars: false,
