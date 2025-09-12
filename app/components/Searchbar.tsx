@@ -29,7 +29,7 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
     borderWidth: 1,
     borderColor: '#AD8787',
-    width: 310,
+    width: 200,
     height: 48,
   },
   icon: {

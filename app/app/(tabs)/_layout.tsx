@@ -2,109 +2,99 @@ import { Tabs } from 'expo-router';
 import React from 'react';
 import { Platform, View } from 'react-native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { Animated } from 'react-native';
 
 import { HapticTab } from '@/components/HapticTab';
-import TabBarBackground from '@/components/ui/TabBarBackground';
-import { useColorScheme } from '@/hooks/useColorScheme';
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-
-  // Decide icon color based on theme
-  const defaultIconColor = colorScheme === 'dark' ? 'white' : 'gray';
-  // Decide label color based on theme
-  const defaultLabelColor = colorScheme === 'dark' ? 'white' : 'gray';
-
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
         tabBarButton: HapticTab,
-        tabBarBackground: TabBarBackground,
-        tabBarStyle: Platform.select({
-          ios: { position: 'absolute' },
-          default: {},
-        }),
+        // ✅ Always fixed background (no dark mode change)
+        tabBarStyle: {
+          backgroundColor: '#F5F5F5', // light gray like your screenshot
+          borderTopWidth:0,
+          height: 70,
+        },
+        tabBarLabelStyle: {
+          fontSize: 12,
+          marginBottom: 4,
+        },
+        // ✅ Always fixed colors
+        tabBarActiveTintColor: '#F9930B', // Red
+        tabBarInactiveTintColor: '#808080', // Gray
       }}
     >
-      {/* Home Tab */}
+      {/* Home */}
       <Tabs.Screen
         name="index"
         options={{
           title: 'Home',
-          tabBarLabelStyle: { color: defaultLabelColor },
-          tabBarIcon: ({ size }) => (
-            <Ionicons name="home" size={size} color={defaultIconColor} />
+          tabBarIcon: ({ color }) => (
+            <Ionicons name="home" size={22} color={color} />
           ),
         }}
       />
 
-      {/* Search Tab */}
+      {/* Search */}
       <Tabs.Screen
         name="search"
         options={{
           title: 'Search',
-          tabBarLabelStyle: { color: defaultLabelColor },
-          tabBarIcon: ({ size }) => (
-            <Ionicons name="search" size={size} color={defaultIconColor} />
+          tabBarIcon: ({ color }) => (
+            <Ionicons name="search" size={22} color={color} />
           ),
         }}
       />
 
-      {/* Planner / Center Tab */}
+      {/* Planner Center Tab */}
       <Tabs.Screen
         name="planner"
         options={{
           title: 'Planner',
-          tabBarLabel: 'Planner',
-          tabBarLabelStyle: {
-            color: colorScheme === 'dark' ? 'black' : 'white', // Special case
-          },
+          tabBarLabel: '',
           tabBarIcon: () => (
-            <View
+            <Animated.View
               style={{
-                width: 73,
-                height: 73,
-                borderRadius: 50,
-                backgroundColor: colorScheme === 'dark' ? 'white' : '#3A0751',
+                width: 55,
+                height: 55,
+                borderRadius: 28,
+                backgroundColor: '#F9930B', // fixed red
                 justifyContent: 'center',
                 alignItems: 'center',
+                shadowColor: '#E60000',
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.3,
+                shadowRadius: 6,
+                elevation: 6,
               }}
             >
-              <MaterialIcons
-                name="event-note"
-                size={32}
-                color={colorScheme === 'dark' ? 'black' : 'white'}
-              />
-            </View>
+              <MaterialIcons name="event-note" size={28} color="white" />
+            </Animated.View>
           ),
         }}
       />
 
-      {/* Event Tab */}
+      {/* Event */}
       <Tabs.Screen
         name="event"
         options={{
           title: 'Event',
-          tabBarLabelStyle: { color: defaultLabelColor },
-          tabBarIcon: ({ size }) => (
-            <Ionicons name="calendar" size={size} color={defaultIconColor} />
+          tabBarIcon: ({ color }) => (
+            <Ionicons name="calendar" size={22} color={color} />
           ),
         }}
       />
 
-      {/* Profile Tab */}
+      {/* Profile */}
       <Tabs.Screen
         name="profile"
         options={{
           title: 'Profile',
-          tabBarLabelStyle: { color: defaultLabelColor },
-          tabBarIcon: ({ size }) => (
-            <Ionicons
-              name="person-circle"
-              size={size}
-              color={defaultIconColor}
-            />
+          tabBarIcon: ({ color }) => (
+            <Ionicons name="person-circle" size={22} color={color} />
           ),
         }}
       />
