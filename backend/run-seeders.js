@@ -7,9 +7,11 @@ import { seedPlaces } from './app/seeders/places.seed.js';
 import { seedHotels } from './app/seeders/hotels.seed.js';
 import { seedEvents } from './app/seeders/events.seed.js';
 import { seedGuides } from './app/seeders/guides.seed.js';
+import { seedUsers } from './app/seeders/users.seed.js';
 
 // Seeder map
 const seeders = {
+  users: seedUsers,
   places: seedPlaces,
   hotels: seedHotels,
   events: seedEvents,
