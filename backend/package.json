@@ -23,7 +23,7 @@
   "license": "MIT",
   "dependencies": {
     "@api-craft/cache": "^1.0.1",
-    "@api-craft/crud-router": "^1.0.4",
+    "@api-craft/crud-router": "^2.1.2",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
