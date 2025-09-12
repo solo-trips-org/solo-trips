@@ -1,0 +1,23 @@
+services:
+  trips-api:
+    container_name: trips-api
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "6000:6000"
+    env_file:
+      - .env
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.trips-api.rule=Host(`trips-api.tselven.com`)"
+      - "traefik.http.routers.trips-api.entrypoints=websecure"
+      - "traefik.http.routers.trips-api.tls=true"
+      - "traefik.http.services.trips-api.loadbalancer.server.port=6000"
+    networks:
+      - webproxy
+
+networks:
+  webproxy:
+    external: true
