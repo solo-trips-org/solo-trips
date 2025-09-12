@@ -22,6 +22,8 @@ import { getNearbyHotels } from "./app/controllers/hotel.controller.js";
 import { getNearbyEvents } from "./app/controllers/event.controller.js";
 import { getNearbyGuides } from "./app/controllers/guide.controller.js";
 import { checkOTP } from "./app/middlewares/checkOTP.middleware.js";
+import { getDashboardAnalytics } from "./app/controllers/dashboard.controller.js";
+import { globalSearch } from "./app/controllers/search.controller.js";
 
 const router = Router();
 
@@ -43,5 +45,7 @@ router.get("/near/places", requireAuth, getNearbyPlaces);
 router.get("/near/hotels", requireAuth, getNearbyHotels);
 router.get("/near/events", requireAuth, getNearbyEvents);
 router.get("/near/guides", requireAuth, getNearbyGuides);
+router.get("/analytics", requireAuth , allowedRoles("admin") , getDashboardAnalytics);
+router.get("/search", globalSearch);
 
 export default router;
