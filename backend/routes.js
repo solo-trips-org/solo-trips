@@ -8,6 +8,12 @@ import {
   newOTP,
   resetPasswordWithOTP,
 } from "./app/controllers/auth.controller.js";
+import {
+  uploadMedia,
+  listMedia,
+  deleteMedia,
+  uploadMiddleware,
+} from "./app/controllers/media.controller.js";
 import { requireAuth } from "./app/middlewares/auth.middleware.js";
 import User from "./app/models/user.model.js";
 import { createCrud } from "@api-craft/crud-router";
@@ -74,5 +80,10 @@ router.get("/ratings/place/:placeId", getPlaceRatings);
 router.get("/ratings/hotel/:hotelId", getHotelRatings);
 router.get("/ratings/event/:eventId", getEventRatings);
 router.get("/ratings/guide/:guideId", getGuideRatings);
+
+
+router.post("/media/upload", uploadMiddleware.single("file"), uploadMedia);
+router.get("/media", listMedia);
+router.delete("media/:id", deleteMedia);
 
 export default router;
