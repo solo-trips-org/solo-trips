@@ -3,8 +3,8 @@ import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
-
 import { useColorScheme } from '@/hooks/useColorScheme';
+import LoadingScreen from './LoadingScreen'; // Loading screen component
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -13,15 +13,20 @@ export default function RootLayout() {
   });
 
   if (!loaded) {
-    // Async font loading only occurs in development.
-    return null;
+    return <LoadingScreen />; // show until fonts are loaded
   }
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <Stack>
+        {/* Initial screens */}
+        <Stack.Screen name="LoadingScreen" options={{ headerShown: false }} />
+        <Stack.Screen name="Signup" options={{ headerShown: false }} />
+        <Stack.Screen name="Verify" options={{ headerShown: false }} />
+        <Stack.Screen name="Login" options={{ headerShown: false }} />
+        
+        {/* Tabs Layout */}
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="+not-found" />
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>
