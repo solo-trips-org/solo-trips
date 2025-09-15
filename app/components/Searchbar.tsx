@@ -29,8 +29,8 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
     borderWidth: 1,
     borderColor: '#AD8787',
-    width: 200,
-    height: 48,
+    width: 100,
+    height: 45,
   },
   icon: {
     marginRight: 8,

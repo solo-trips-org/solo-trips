@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, Alert, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -6,56 +6,99 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import * as MediaLibrary from 'expo-media-library';
 import { Camera } from 'expo-camera';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios, { AxiosError } from 'axios';
+import { Ionicons } from '@expo/vector-icons'; // 👈 For show/hide password icon
 
 export default function Login() {
   const router = useRouter();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false); // 👈 toggle password visibility
 
-  const requestAllPermissions = async () => {
-    setLoading(true);
+  // ✅ Permission request function
+  const requestAllPermissions = async (): Promise<boolean> => {
     try {
       const { status: cameraStatus } = await Camera.requestCameraPermissionsAsync();
       if (cameraStatus !== 'granted') {
         Alert.alert('Permission required', 'Camera permission is needed to continue.');
-        setLoading(false);
         return false;
       }
 
       const { status: mediaStatus } = await MediaLibrary.requestPermissionsAsync();
       if (mediaStatus !== 'granted') {
         Alert.alert('Permission required', 'Media permission is needed to continue.');
-        setLoading(false);
         return false;
       }
 
       const { status: locationStatus } = await Location.requestForegroundPermissionsAsync();
       if (locationStatus !== 'granted') {
         Alert.alert('Permission required', 'Location permission is needed to continue.');
-        setLoading(false);
         return false;
       }
 
-      setLoading(false);
       return true;
     } catch (error) {
       console.error('Permission error:', error);
       Alert.alert('Error', 'Something went wrong while requesting permissions.');
-      setLoading(false);
       return false;
     }
   };
 
+  // ✅ Auto login if token exists
+  useEffect(() => {
+    const checkToken = async () => {
+      const savedToken = await AsyncStorage.getItem("authToken");
+      if (savedToken) {
+        console.log("Found saved token:", savedToken);
+        router.replace('/'); // skip login page
+      }
+    };
+    checkToken();
+  }, []);
+
+  // ✅ Login function
   const handleLogin = async () => {
     if (!username || !password) {
       Alert.alert('Validation', 'Please enter username and password.');
       return;
     }
 
-    const granted = await requestAllPermissions();
-    if (granted) {
-      router.replace('/'); 
+    setLoading(true);
+
+    try {
+      const response = await axios.post("https://trips-api.tselven.com/api/login", {
+        username: username,
+        password: password, // 👈 backend expects lowercase key
+      });
+
+      const { token, user } = response.data;
+
+      // 🔑 Save token
+      await AsyncStorage.setItem("authToken", token);
+
+      console.log("JWT Token:", token);
+      console.log("User Info:", user);
+
+      Alert.alert("Success", `Welcome ${user.username}`);
+
+      setLoading(false);
+
+      const granted = await requestAllPermissions();
+      if (granted) {
+        router.replace('/'); // go to home
+      }
+    } catch (err) {
+      const error = err as AxiosError<any>;
+      console.error(error.response?.data || error.message);
+
+      Alert.alert(
+        "Login Failed",
+        error.response?.data?.message || "Invalid username or password"
+      );
+
+      setLoading(false);
     }
   };
 
@@ -78,14 +121,23 @@ export default function Login() {
         />
 
         <Text style={styles.label}>Password</Text>
-        <TextInput
-          style={styles.input}
-          secureTextEntry
-          placeholder="••••••••"
-          placeholderTextColor="#999"
-          value={password}
-          onChangeText={setPassword}
-        />
+        <View style={styles.passwordContainer}>
+          <TextInput
+            style={styles.inputPassword}
+            secureTextEntry={!showPassword} // 👈 toggle secureTextEntry
+            placeholder="••••••••"
+            placeholderTextColor="#999"
+            value={password}
+            onChangeText={setPassword}
+          />
+          <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+            <Ionicons
+              name={showPassword ? 'eye' : 'eye-off'}
+              size={24}
+              color="#fff"
+            />
+          </TouchableOpacity>
+        </View>
 
         <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
           {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Login</Text>}
@@ -149,6 +201,23 @@ const styles = StyleSheet.create({
 
   label: { color: '#fff', marginBottom: 5, fontWeight: '600' },
   input: { borderWidth: 1, borderColor: '#555', borderRadius: 5, padding: 10, color: '#fff', marginBottom: 15 },
+  
+  // ✅ Password container styles
+  passwordContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#555',
+    borderRadius: 5,
+    paddingHorizontal: 10,
+    marginBottom: 15,
+  },
+  inputPassword: {
+    flex: 1,
+    paddingVertical: 10,
+    color: '#fff',
+  },
+
   button: { backgroundColor: '#c000ff', padding: 15, borderRadius: 5, alignItems: 'center', marginTop: 10 },
   buttonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
   orText: { textAlign: 'center', color: '#aaa', marginVertical: 10 },

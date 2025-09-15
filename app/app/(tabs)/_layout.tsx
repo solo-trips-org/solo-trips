@@ -1,10 +1,10 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
-import { Platform, View } from 'react-native';
+import { View, Animated, Platform, Dimensions } from 'react-native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
-import { Animated } from 'react-native';
-
 import { HapticTab } from '@/components/HapticTab';
+
+const { width } = Dimensions.get('window');
 
 export default function TabLayout() {
   return (
@@ -12,19 +12,28 @@ export default function TabLayout() {
       screenOptions={{
         headerShown: false,
         tabBarButton: HapticTab,
-        // ✅ Always fixed background (no dark mode change)
+        tabBarHideOnKeyboard: true,
         tabBarStyle: {
-          backgroundColor: '#F5F5F5', // light gray like your screenshot
-          borderTopWidth:0,
-          height: 70,
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: 78,
+          borderRadius: 0,
+          backgroundColor: '#fff',
+          paddingBottom: Platform.OS === 'ios' ? 20 : 10,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 5 },
+          shadowOpacity: 0.1,
+          shadowRadius: 0,
+          elevation: 5,
         },
+        tabBarActiveTintColor: '#F9930B',
+        tabBarInactiveTintColor: '#A0A0A0',
         tabBarLabelStyle: {
           fontSize: 12,
-          marginBottom: 4,
+          marginBottom: 0,
         },
-        // ✅ Always fixed colors
-        tabBarActiveTintColor: '#F9930B', // Red
-        tabBarInactiveTintColor: '#808080', // Gray
       }}
     >
       {/* Home */}
@@ -32,9 +41,7 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Home',
-          tabBarIcon: ({ color }) => (
-            <Ionicons name="home" size={22} color={color} />
-          ),
+          tabBarIcon: ({ color }) => <Ionicons name="home-outline" size={24} color={color} />,
         }}
       />
 
@@ -43,35 +50,33 @@ export default function TabLayout() {
         name="search"
         options={{
           title: 'Search',
-          tabBarIcon: ({ color }) => (
-            <Ionicons name="search" size={22} color={color} />
-          ),
+          tabBarIcon: ({ color }) => <Ionicons name="search-outline" size={24} color={color} />,
         }}
       />
 
-      {/* Planner Center Tab */}
+      {/* Planner / Center Floating Button */}
       <Tabs.Screen
         name="planner"
         options={{
-          title: 'Planner',
           tabBarLabel: '',
           tabBarIcon: () => (
             <Animated.View
               style={{
-                width: 55,
-                height: 55,
-                borderRadius: 28,
-                backgroundColor: '#F9930B', // fixed red
+                width: 70,
+                height: 70,
+                borderRadius: 35,
+                backgroundColor: '#F9930B',
                 justifyContent: 'center',
                 alignItems: 'center',
-                shadowColor: '#E60000',
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.3,
-                shadowRadius: 6,
-                elevation: 6,
+                top: -30,
+                shadowColor: '#F9930B',
+                shadowOffset: { width: 0, height: 5 },
+                shadowOpacity: 0.4,
+                shadowRadius: 25,
+                elevation: 8,
               }}
             >
-              <MaterialIcons name="event-note" size={28} color="white" />
+              <MaterialIcons name="event-note" size={30} color="white" />
             </Animated.View>
           ),
         }}
@@ -82,9 +87,7 @@ export default function TabLayout() {
         name="event"
         options={{
           title: 'Event',
-          tabBarIcon: ({ color }) => (
-            <Ionicons name="calendar" size={22} color={color} />
-          ),
+          tabBarIcon: ({ color }) => <Ionicons name="calendar-outline" size={24} color={color} />,
         }}
       />
 
@@ -93,9 +96,7 @@ export default function TabLayout() {
         name="profile"
         options={{
           title: 'Profile',
-          tabBarIcon: ({ color }) => (
-            <Ionicons name="person-circle" size={22} color={color} />
-          ),
+          tabBarIcon: ({ color }) => <Ionicons name="person-circle-outline" size={24} color={color} />,
         }}
       />
     </Tabs>
