@@ -68,7 +68,7 @@ export const register = async (req, res) => {
 
 export const login = async (req, res) => {
   try {
-    const { username, email, password } = req.body;
+    const { username, email, password, role } = req.body;
 
     if ((!username && !email) || !password) {
       return res
@@ -78,6 +78,11 @@ export const login = async (req, res) => {
 
     // Build dynamic query: prefer email if given, else username
     const query = email ? { email } : { username };
+
+    // If role is provided, add it to the query
+    if (role) {
+      query.role = role;
+    }
 
     const user = await User.findOne(query);
     if (!user || !(await user.comparePassword(password))) {
