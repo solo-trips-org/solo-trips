@@ -1,94 +1,115 @@
 import React, { useEffect, useState } from 'react';
 import { Image } from 'expo-image';
-import { StyleSheet, ScrollView, StatusBar, ActivityIndicator, Text, TextInput, View } from 'react-native';
+import {
+  StyleSheet,
+  ScrollView,
+  StatusBar,
+  Text,
+  TextInput,
+  View,
+  TouchableOpacity,
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+} from 'react-native';
 import * as Location from 'expo-location';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useRouter } from 'expo-router';
 
 type Place = {
+  id?: number;
   name: string;
   lat: number;
   lng: number;
-  img: any;
+  image: string;
 };
 
-type Hotel = {
-  name: string;
-  price: string;
-  img: any;
-};
+const { width } = Dimensions.get('window');
+const GRID_ITEM_WIDTH = (width - 150) / 2; // card size
 
 export default function HomeScreen() {
-  const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const router = useRouter();
   const [nearestPlaces, setNearestPlaces] = useState<Place[]>([]);
+  const [hotels, setHotels] = useState<Place[]>([]);
+  const [events, setEvents] = useState<Place[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-
-  const allPlaces: Place[] = [
-    { name: 'Jaffna Fort', lat: 9.6616, lng: 80.0255, img: require('@/assets/images/jaffna.png') },
-    { name: 'Nallur Temple', lat: 9.6660, lng: 80.0250, img: require('@/assets/images/nallur.png') },
-    { name: 'Dutch Fort', lat: 9.6630, lng: 80.0230, img: require('@/assets/images/jaffna.png') },
-    { name: 'Casuarina Beach', lat: 9.6770, lng: 80.0300, img: require('@/assets/images/nallur.png') },
-    { name: 'Library', lat: 9.6620, lng: 80.0260, img: require('@/assets/images/jaffna.png') },
-    { name: 'Nagadeepa', lat: 9.6700, lng: 80.0320, img: require('@/assets/images/nallur.png') },
-  ];
-
-  const hotels: Hotel[] = [
-    { name: 'U.S Hotel', price: 'Rs.5000/night', img: require('@/assets/images/hotel1.png') },
-    { name: 'Jet Wing', price: 'Rs.8000/night', img: require('@/assets/images/hotel2.png') },
-    { name: 'Green Palace', price: 'Rs.6000/night', img: require('@/assets/images/hotel1.png') },
-    { name: 'Star Rest', price: 'Rs.4500/night', img: require('@/assets/images/hotel2.png') },
-  ];
 
   useEffect(() => {
     (async () => {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== 'granted') {
-          alert('Permission to access location was denied');
+          Alert.alert('Permission denied', 'Location permission is required.');
           setLoading(false);
-          setNearestPlaces(allPlaces); // fallback to show all
           return;
         }
 
         const loc = await Location.getCurrentPositionAsync({});
-        setUserLocation({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
+        const { latitude, longitude } = loc.coords;
 
-        // For testing: increase radius to show places
-        const nearby = allPlaces.filter(place => {
-          const distance = getDistanceFromLatLonInKm(
-            loc.coords.latitude,
-            loc.coords.longitude,
-            place.lat,
-            place.lng
-          );
-          return distance <= 400; // 400 km radius for testing
-        });
+        const token = await AsyncStorage.getItem('authToken');
+        if (!token) {
+          Alert.alert('Error', 'No token found, please login again.');
+          router.replace('/Login');
+          return;
+        }
 
-        setNearestPlaces(nearby);
+        // Fetch nearest places
+        const placesRes = await fetch(
+          `https://trips-api.tselven.com/api/near/places?lat=${latitude}&lng=${longitude}&radius=10`,
+
+// nearby place ku ipdi kudunga
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+        const placesData = await placesRes.json();
+        setNearestPlaces(Array.isArray(placesData) ? placesData : placesData?.places || []);
+
+        // Fetch hotels
+        const hotelRes = await fetch(
+          `https://trips-api.tselven.com/api/near/hotels?latitude=9.6615&longitude=80.0255&radius=5`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        const hotelData = await hotelRes.json();
+        setHotels(Array.isArray(hotelData) ? hotelData : hotelData?.hotels || []);
+
+        // Fetch events
+        const eventRes = await fetch(
+          `https://trips-api.tselven.com/api/near/events?lat=9.6678&lng=80.0142&radius=5`,
+
+// nearby place ku ipdi kudunga/
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        const eventData = await eventRes.json();
+        setEvents(Array.isArray(eventData) ? eventData : eventData?.events || []);
       } catch (error) {
-        console.error(error);
-        setNearestPlaces(allPlaces); // fallback
+        console.error('API Error:', error);
       } finally {
         setLoading(false);
       }
     })();
   }, []);
 
-  const getDistanceFromLatLonInKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-    const R = 6371;
-    const dLat = deg2rad(lat2 - lat1);
-    const dLon = deg2rad(lon2 - lon1);
-    const a =
-      Math.sin(dLat / 2) ** 2 +
-      Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * Math.sin(dLon / 2) ** 2;
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
+  const filteredPlaces = nearestPlaces.filter(place =>
+    place.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const handleLogout = async () => {
+    try {
+      await AsyncStorage.removeItem('authToken');
+      Alert.alert('Logged out', 'You have been logged out.');
+      router.replace('/Login');
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
   };
-
-  const deg2rad = (deg: number) => deg * (Math.PI / 180);
-
-  const filteredPlaces = nearestPlaces.filter(place => place.name.toLowerCase().includes(searchQuery.toLowerCase()));
 
   return (
     <SafeAreaView style={styles.container}>
@@ -100,7 +121,9 @@ export default function HomeScreen() {
           <Image source={require('@/assets/images/logo1.png')} style={styles.reactLogo} />
           <Text style={styles.headerTitle}>Traveler</Text>
         </View>
-        <Image source={require('@/assets/images/bell1.png')} style={styles.bellIcon} />
+        <TouchableOpacity onPress={handleLogout} style={styles.logoutBtn}>
+          <Ionicons name="log-out-outline" size={22} color="#fff" />
+        </TouchableOpacity>
       </View>
 
       {/* Search */}
@@ -117,55 +140,53 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      <ScrollView style={{ flex: 1 }}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 20 }}>
         {/* Nearest Places */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Nearest Places</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {loading ? (
-              <ActivityIndicator color="#c000ff" size="small" style={{ marginLeft: 10 }} />
-            ) : filteredPlaces.length > 0 ? (
-              filteredPlaces.map((place, i) => (
-                <View key={i} style={styles.card}>
-                  <Image source={place.img} style={styles.cardImage} />
-                  <Text style={styles.cardLabel}>{place.name}</Text>
-                </View>
-              ))
-            ) : (
-              <Text style={{ color: '#fff', margin: 10 }}>No nearby places found</Text>
-            )}
-          </ScrollView>
-        </View>
-
-        {/* Recommended Hotels */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Recommended Hotels</Text>
-          {hotels.map((hotel, i) => (
-            <View key={i} style={styles.listCard}>
-              <Image source={hotel.img} style={styles.listImage} />
-              <View>
-                <Text style={styles.hotelTitle}>{hotel.name}</Text>
-                <Text style={styles.hotelPrice}>{hotel.price}</Text>
-              </View>
-            </View>
-          ))}
-        </View>
-
-        {/* Nearby Events */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Nearby Events</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {[ 
-              { img: require('@/assets/images/event1.png'), name: 'Music Fest' },
-              { img: require('@/assets/images/event2.png'), name: 'Food Carnival' },
-            ].map((event, i) => (
-              <View key={i} style={{ marginRight: 12, alignItems: 'center' }}>
-                <Image source={event.img} style={styles.eventImage} />
-                <Text style={styles.eventName}>{event.name}</Text>
+        <Text style={styles.sectionTitle}>Nearest Places</Text>
+        {loading ? (
+          <ActivityIndicator color="#c000ff" size="large" style={{ marginTop: 20 }} />
+        ) : filteredPlaces.length > 0 ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.gridScrollContainer}>
+            {filteredPlaces.map((place, index) => (
+              <View key={place.id ?? index} style={styles.gridCard}>
+                <Image source={{ uri: place.image }} style={styles.gridImage} />
+                <Text style={styles.gridLabel}>{place.name}</Text>
               </View>
             ))}
           </ScrollView>
-        </View>
+        ) : (
+          <Text style={styles.emptyText}>No nearby places found</Text>
+        )}
+
+        {/* Hotels */}
+        <Text style={styles.sectionTitle}>Recommended Hotels</Text>
+        {hotels.length > 0 ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.gridScrollContainer}>
+            {hotels.map((hotel, index) => (
+              <View key={hotel.id ?? index} style={styles.gridCard}>
+                <Image source={{ uri: hotel.image }} style={styles.gridImage} />
+                <Text style={styles.gridLabel}>{hotel.name}</Text>
+              </View>
+            ))}
+          </ScrollView>
+        ) : (
+          <Text style={styles.emptyText}>No hotels nearby</Text>
+        )}
+
+        {/* Events */}
+        <Text style={styles.sectionTitle}>Nearby Events</Text>
+        {events.length > 0 ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.gridScrollContainer}>
+            {events.map((event, index) => (
+              <View key={event.id ?? index} style={styles.gridCard}>
+                <Image source={{ uri: event.image }} style={styles.gridImage} />
+                <Text style={styles.gridLabel}>{event.name}</Text>
+              </View>
+            ))}
+          </ScrollView>
+        ) : (
+          <Text style={styles.emptyText}>No events nearby</Text>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -173,23 +194,60 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#2E0740' },
-  headerBar: { width: '100%', height: 80, backgroundColor: '#2E0740', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 10 },
+  headerBar: {
+    width: '100%',
+    height: 70,
+    backgroundColor: '#2E0740',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 10,
+  },
   headerLogoContainer: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   reactLogo: { height: 60, width: 50, resizeMode: 'contain' },
-  bellIcon: { height: 28, width: 28, resizeMode: 'contain' },
-  headerTitle: { fontSize: 18, fontWeight: '600', color: 'white', marginLeft: 8 },
+  headerTitle: { fontSize: 18, fontWeight: '600', color: 'white', marginLeft: 2 },
+  logoutBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#c000ff',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
   searchWrapper: { margin: 10 },
-  searchInputWrapper: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#3A0751', borderRadius: 8, paddingHorizontal: 8 },
+  searchInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#3A0751',
+    borderRadius: 50,
+    paddingHorizontal: 8,
+    borderWidth: 0.5,
+    borderColor: '#c000ff',
+    width: '90%',
+    height: 45,
+    marginLeft: 25,
+  },
   searchInput: { flex: 1, height: 40, color: '#fff' },
-  section: { marginTop: 20, marginHorizontal: 10 },
-  sectionTitle: { fontSize: 16, fontWeight: '600', marginBottom: 10, color: 'white' },
-  card: { alignItems: 'center', marginRight: 12 },
-  cardImage: { width: 120, height: 90, borderRadius: 10 },
-  cardLabel: { marginTop: 5, fontSize: 13, fontWeight: '500', color: 'white' },
-  listCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#3A0751', padding: 8, borderRadius: 10, borderWidth: 1, borderColor: '#AD8787', marginTop: 10, width: '92%', alignSelf: 'center' },
-  listImage: { width: 70, height: 55, borderRadius: 8, marginRight: 10 },
-  hotelTitle: { fontSize: 14, fontWeight: '600', color: 'white' },
-  hotelPrice: { fontSize: 12, color: '#ccc' },
-  eventImage: { width: 140, height: 90, borderRadius: 10, marginRight: 12 },
-  eventName: { color: 'white', fontSize: 12, marginTop: 4 },
+  sectionTitle: { fontSize: 16, fontWeight: '600', marginBottom: 10, color: '#fff', marginLeft: 20 },
+  emptyText: { color: '#aaa', marginLeft: 20, marginBottom: 15 },
+
+  // Horizontal scroll container
+  gridScrollContainer: {
+    paddingHorizontal: 10,
+  },
+  gridCard: {
+    width: GRID_ITEM_WIDTH,
+    marginRight: 15,
+    alignItems: 'center',
+    backgroundColor: '#3A0751',
+    padding: 8,
+    borderRadius: 12,
+  },
+  gridImage: {
+    width: GRID_ITEM_WIDTH - 20,
+    height: GRID_ITEM_WIDTH - 20,
+    borderRadius: 10,
+  },
+  gridLabel: { marginTop: 6, fontSize: 12, color: '#fff', textAlign: 'center' },
 });
