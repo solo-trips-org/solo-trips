@@ -13,6 +13,7 @@ import {
   listMedia,
   deleteMedia,
   uploadMiddleware,
+  getPrivateMediaUrl,
 } from "./app/controllers/media.controller.js";
 import { requireAuth } from "./app/middlewares/auth.middleware.js";
 import User from "./app/models/user.model.js";
@@ -39,6 +40,10 @@ import {
   getHotelRatings,
   getPlaceRatings,
 } from "./app/controllers/rating.controller.js";
+import {
+  createPath,
+  findOptimalPathWithWaypoints,
+} from "./app/controllers/paths.controller.js";
 
 const router = Router();
 
@@ -62,7 +67,6 @@ router.get("/near/hotels", requireAuth, getNearbyHotels);
 router.get("/near/events", requireAuth, getNearbyEvents);
 router.get("/near/guides", requireAuth, getNearbyGuides);
 
-
 router.get(
   "/analytics",
   requireAuth,
@@ -81,9 +85,12 @@ router.get("/ratings/hotel/:hotelId", getHotelRatings);
 router.get("/ratings/event/:eventId", getEventRatings);
 router.get("/ratings/guide/:guideId", getGuideRatings);
 
+router.post("/paths", requireAuth, createPath);
+router.post("/find/path", requireAuth, findOptimalPathWithWaypoints);
 
 router.post("/media/upload", uploadMiddleware.single("file"), uploadMedia);
 router.get("/media", listMedia);
+router.get("/media/:id", getPrivateMediaUrl);
 router.delete("media/:id", deleteMedia);
 
 export default router;
