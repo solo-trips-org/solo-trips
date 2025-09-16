@@ -39,7 +39,7 @@ export const uploadMedia = async (req, res) => {
       size: file.size,
       public: isPublic,
       userId,
-      url: `https://${process.env.R2_BUCKET}.${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${key}`
+      url: `${process.env.R2_PUBLIC_URL}/${key}`
     });
 
     res.json(media);
