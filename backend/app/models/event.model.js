@@ -16,6 +16,7 @@ const eventSchema = new mongoose.Schema(
         required: true,
         default: "Point",
       },
+      
       coordinates: { type: [Number], required: true },
     },
   },
