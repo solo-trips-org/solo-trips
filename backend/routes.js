@@ -50,6 +50,7 @@ import {
   getOneGlobalSetting,
   updateGlobalSetting,
 } from "./app/controllers/settings.controller.js";
+import { Hotel } from "./app/models/hotel.model.js";
 
 const router = Router();
 
@@ -63,9 +64,34 @@ router.post("/send-otp", sendOTP);
 router.post("/new-otp", newOTP);
 router.post("/forget-password", resetPasswordWithOTP);
 
-router.use("/places", requireAuth, allowedRoles("admin"), createCrud(Place));
-router.use("/events", requireAuth, allowedRoles("admin"), createCrud(Event));
-router.use("/guides", requireAuth, allowedRoles("admin"), createCrud(Guide));
+router.use("/places", requireAuth, createCrud(Place,{
+  middlewares:{
+    create: allowedRoles("admin"),
+    update: allowedRoles("admin"),
+    remove: allowedRoles("admin")
+  }
+}));
+router.use("/events", requireAuth, createCrud(Event,{
+  middlewares:{
+    create: allowedRoles("admin"),
+    update: allowedRoles("admin"),
+    remove: allowedRoles("admin")
+  }
+}));
+router.use("/guides", requireAuth, createCrud(Guide,{
+  middlewares:{
+    create: allowedRoles("admin"),
+    update: allowedRoles("admin"),
+    remove: allowedRoles("admin")
+  }
+}));
+router.use("/guides", requireAuth, createCrud(Hotel,{
+  middlewares:{
+    create: allowedRoles("admin"),
+    update: allowedRoles("admin"),
+    remove: allowedRoles("admin")
+  }
+}));
 router.use("/users", requireAuth, allowedRoles("admin"), createCrud(User));
 
 //----------------- NearBy Finding Routes ---------------------//
