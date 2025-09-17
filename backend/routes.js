@@ -99,8 +99,8 @@ router.get("/media", listMedia);
 router.get("/media/:id", getPrivateMediaUrl);
 router.delete("media/:id", deleteMedia);
 
-router.get("/settings", getGlobalSettings);
-router.get("/settings/:key", getOneGlobalSetting);
-router.post("/settings/:key", updateGlobalSetting);
+router.get("/settings",requireAuth, getGlobalSettings);
+router.get("/settings/:key", requireAuth,getOneGlobalSetting);
+router.post("/settings/:key",requireAuth, allowedRoles("admin"), updateGlobalSetting);
 
 export default router;
