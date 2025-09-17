@@ -43,6 +43,7 @@ import {
 import {
   createPath,
   findOptimalPathWithWaypoints,
+  getPaths,
 } from "./app/controllers/paths.controller.js";
 import {
   getGlobalSettings,
@@ -91,6 +92,7 @@ router.get("/ratings/hotel/:hotelId", getHotelRatings);
 router.get("/ratings/event/:eventId", getEventRatings);
 router.get("/ratings/guide/:guideId", getGuideRatings);
 
+router.get("/paths",requireAuth, getPaths);
 router.post("/paths", requireAuth, createPath);
 router.post("/find/path", requireAuth, findOptimalPathWithWaypoints);
 
