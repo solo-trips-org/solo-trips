@@ -1,27 +1,52 @@
 import Setting from "../models/setting.model.js";
 
-export const getGlobalSettings = async (res, req) => {
+// Get all settings
+export const getGlobalSettings = async (req, res) => {
   try {
     const settings = await Setting.find();
     res.status(200).json({ success: true, data: settings });
-  } catch {
-    return res.status(500).json({ error: "Internal Server Error" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Internal Server Error" });
   }
 };
 
-export const updateGlobalSetting = async (res, req) => {
-  const { key } = req.params;
-  const { value } = req.body;
-  const data = await Setting.findOneAndUpdate(
-    { key },
-    { value: value },
-    { new: true }
-  );
-  return res.status(203).json({ data });
+// Update a setting by key
+export const updateGlobalSetting = async (req, res) => {
+  try {
+    const { key } = req.params;
+    const { value } = req.body;
+
+    const data = await Setting.findOneAndUpdate(
+      { key },
+      { value },
+      { new: true }
+    );
+
+    if (!data) {
+      return res.status(404).json({ error: "Setting not found" });
+    }
+
+    return res.status(200).json({ success: true, data });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
 };
 
-export const getOneGlobalSetting = async (res, req) => {
-  const { key } = req.params;
-  const data = await Setting.findOne({ key });
-  return res.status(200).json({ data });
+// Get one setting by key
+export const getOneGlobalSetting = async (req, res) => {
+  try {
+    const { key } = req.params;
+    const data = await Setting.findOne({ key });
+
+    if (!data) {
+      return res.status(404).json({ error: "Setting not found" });
+    }
+
+    return res.status(200).json({ success: true, data });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
 };
