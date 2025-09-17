@@ -15,8 +15,13 @@ export const uploadMedia = async (req, res) => {
     const file = req.file;
     if (!file) return res.status(400).json({ error: "No file uploaded" });
 
-    const key = `${nanoid()}-${file.originalname}`;
-    const { public: isPublic = true, userId = null } = req.body; // optional params
+    // Optional folder param (from body or query)
+    const { folder = "", public: isPublic = true, userId = null } = req.body;
+
+    // Build full key with folder prefix if provided
+    const key = folder
+      ? `${folder.replace(/\/+$/, "")}/${nanoid()}-${file.originalname}`
+      : `${nanoid()}-${file.originalname}`;
 
     // Upload to R2
     const command = new PutObjectCommand({
@@ -34,7 +39,7 @@ export const uploadMedia = async (req, res) => {
       size: file.size,
       public: isPublic,
       userId,
-      url: `https://${process.env.R2_BUCKET}.${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${key}`
+      url: `${process.env.R2_PUBLIC_URL}/${key}`
     });
 
     res.json(media);
@@ -47,11 +52,12 @@ export const uploadMedia = async (req, res) => {
 // List Media
 export const listMedia = async (req, res) => {
   try {
-    const { userId, publicOnly } = req.query;
+    const { userId, publicOnly, folder } = req.query;
 
     let filter = {};
     if (userId) filter.userId = userId;
     if (publicOnly === "true") filter.public = true;
+    if (folder) filter.filename = { $regex: `^${folder}/` };
 
     const mediaList = await Media.find(filter).sort({ createdAt: -1 });
     res.json(mediaList);

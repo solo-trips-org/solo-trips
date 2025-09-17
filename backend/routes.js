@@ -13,12 +13,13 @@ import {
   listMedia,
   deleteMedia,
   uploadMiddleware,
+  getPrivateMediaUrl,
 } from "./app/controllers/media.controller.js";
 import { requireAuth } from "./app/middlewares/auth.middleware.js";
 import User from "./app/models/user.model.js";
 import { createCrud } from "@api-craft/crud-router";
 import allowedRoles from "./app/middlewares/allowed_roles.middleware.js";
-
+import { updateProfile } from "./app/controllers/user.controller.js";
 import { Place } from "./app/models/place.model.js";
 import { Event } from "./app/models/event.model.js";
 import { Guide } from "./app/models/guide.model.js";
@@ -39,6 +40,15 @@ import {
   getHotelRatings,
   getPlaceRatings,
 } from "./app/controllers/rating.controller.js";
+import {
+  createPath,
+  findOptimalPathWithWaypoints,
+} from "./app/controllers/paths.controller.js";
+import {
+  getGlobalSettings,
+  getOneGlobalSetting,
+  updateGlobalSetting,
+} from "./app/controllers/settings.controller.js";
 
 const router = Router();
 
@@ -46,6 +56,7 @@ const router = Router();
 router.post("/register", checkOTP, register);
 router.post("/login", login);
 router.get("/profile", requireAuth, profile);
+router.post("/profile", requireAuth, updateProfile);
 router.post("/logout", requireAuth, logout);
 router.post("/send-otp", sendOTP);
 router.post("/new-otp", newOTP);
@@ -62,14 +73,13 @@ router.get("/near/hotels", requireAuth, getNearbyHotels);
 router.get("/near/events", requireAuth, getNearbyEvents);
 router.get("/near/guides", requireAuth, getNearbyGuides);
 
-
 router.get(
   "/analytics",
   requireAuth,
   allowedRoles("admin"),
   getDashboardAnalytics
 );
-router.get("/search", globalSearch);
+router.get("/search", requireAuth, globalSearch);
 
 //-------------------------- Ratings Routes ------------------------//
 router.post("/ratings/place", addPlaceRating);
@@ -81,9 +91,16 @@ router.get("/ratings/hotel/:hotelId", getHotelRatings);
 router.get("/ratings/event/:eventId", getEventRatings);
 router.get("/ratings/guide/:guideId", getGuideRatings);
 
+router.post("/paths", requireAuth, createPath);
+router.post("/find/path", requireAuth, findOptimalPathWithWaypoints);
 
 router.post("/media/upload", uploadMiddleware.single("file"), uploadMedia);
 router.get("/media", listMedia);
+router.get("/media/:id", getPrivateMediaUrl);
 router.delete("media/:id", deleteMedia);
+
+router.get("/settings",requireAuth, getGlobalSettings);
+router.get("/settings/:key", requireAuth,getOneGlobalSetting);
+router.post("/settings/:key",requireAuth, allowedRoles("admin"), updateGlobalSetting);
 
 export default router;
