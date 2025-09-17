@@ -66,30 +66,30 @@ router.post("/forget-password", resetPasswordWithOTP);
 
 router.use("/places", requireAuth, createCrud(Place,{
   middlewares:{
-    create: allowedRoles("admin"),
-    update: allowedRoles("admin"),
-    remove: allowedRoles("admin")
+    create: [allowedRoles("admin")],
+    update: [allowedRoles("admin")],
+    remove: [allowedRoles("admin")]
   }
 }));
 router.use("/events", requireAuth, createCrud(Event,{
   middlewares:{
-    create: allowedRoles("admin"),
-    update: allowedRoles("admin"),
-    remove: allowedRoles("admin")
+    create: [allowedRoles("admin")],
+    update: [allowedRoles("admin")],
+    remove: [allowedRoles("admin")]
   }
 }));
 router.use("/guides", requireAuth, createCrud(Guide,{
   middlewares:{
-    create: allowedRoles("admin"),
-    update: allowedRoles("admin"),
-    remove: allowedRoles("admin")
+    create: [allowedRoles("admin")],
+    update: [allowedRoles("admin")],
+    remove: [allowedRoles("admin")]
   }
 }));
 router.use("/guides", requireAuth, createCrud(Hotel,{
   middlewares:{
-    create: allowedRoles("admin"),
-    update: allowedRoles("admin"),
-    remove: allowedRoles("admin")
+    create: [allowedRoles("admin")],
+    update: [allowedRoles("admin")],
+    remove: [allowedRoles("admin")]
   }
 }));
 router.use("/users", requireAuth, allowedRoles("admin"), createCrud(User));
