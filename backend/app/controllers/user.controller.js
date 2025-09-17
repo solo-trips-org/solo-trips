@@ -74,3 +74,39 @@ export const deleteUser = async (req, res) => {
         res.status(500).json({ "error": "Internal Server Error" });
     }
 };
+
+/**
+ * Update profile (non-sensitive fields only)
+ */
+export const updateProfile = async (req, res) => {
+  try {
+    const userId = req.user?.id; // assuming user is authenticated via middleware (JWT/session)
+    if(!userId){
+        return res.status(401).json({error: "You must be authenticate to update profile"})
+    }
+    // Allowed fields to update
+    const allowedUpdates = ["firstName", "lastName", "gender", "profile"];
+    const updates = {};
+
+    for (const key of allowedUpdates) {
+      if (req.body[key] !== undefined) {
+        updates[key] = req.body[key];
+      }
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { $set: updates },
+      { new: true, runValidators: true }
+    ).select("-password"); // remove password from response
+
+    if (!updatedUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.json(updatedUser);
+  } catch (error) {
+    console.error("Update profile error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};

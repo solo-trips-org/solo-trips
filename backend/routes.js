@@ -19,7 +19,7 @@ import { requireAuth } from "./app/middlewares/auth.middleware.js";
 import User from "./app/models/user.model.js";
 import { createCrud } from "@api-craft/crud-router";
 import allowedRoles from "./app/middlewares/allowed_roles.middleware.js";
-
+import { updateProfile } from './app/controllers/user.controller.js'
 import { Place } from "./app/models/place.model.js";
 import { Event } from "./app/models/event.model.js";
 import { Guide } from "./app/models/guide.model.js";
@@ -51,6 +51,7 @@ const router = Router();
 router.post("/register", checkOTP, register);
 router.post("/login", login);
 router.get("/profile", requireAuth, profile);
+router.post("/profile",requireAuth,updateProfile)
 router.post("/logout", requireAuth, logout);
 router.post("/send-otp", sendOTP);
 router.post("/new-otp", newOTP);
