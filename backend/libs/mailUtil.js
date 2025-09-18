@@ -1,13 +1,15 @@
-import nodemailer from 'nodemailer';
+import nodemailer from "nodemailer";
 
 /**
- * Create transporter using Gmail
+ * Create transporter for Brevo (Sendinblue) SMTP
  */
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: process.env.BREVO_SMTP_HOST || "smtp-relay.brevo.com",
+  port: 587,                // TLS port
+  secure: false,            // use STARTTLS
   auth: {
-    user: process.env.GMAIL_USER, // your Gmail address
-    pass: process.env.GMAIL_PASS, // your Gmail App Password (not normal password)
+    user: process.env.BREVO_SMTP_USER, // Brevo SMTP login (your account email)
+    pass: process.env.BREVO_SMTP_PASS, // Brevo SMTP API key / password
   },
 });
 
@@ -16,7 +18,7 @@ const transporter = nodemailer.createTransport({
  */
 export const sendEmail = async ({ to, subject, html, attachments = [] }) => {
   const mailOptions = {
-    from: process.env.GMAIL_USER,
+    from: process.env.FROM_EMAIL || "no-reply@yourdomain.com",
     to,
     subject,
     html,
@@ -30,7 +32,7 @@ export const sendEmail = async ({ to, subject, html, attachments = [] }) => {
  * Send OTP Email
  */
 export const sendOtpEmail = async (to, otp, validityMinutes = 3) => {
-  const subject = 'Your OTP Code';
+  const subject = "Your OTP Code";
   const html = `
     <p>Your OTP code is:</p>
     <h2>${otp}</h2>

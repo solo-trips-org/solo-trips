@@ -14,8 +14,7 @@ export const globalSearch = async (req, res) => {
       startDate,
       endDate,
       city,
-      language,
-      only
+      language
     } = req.query;
 
     const regex = q ? new RegExp(q, "i") : null;
