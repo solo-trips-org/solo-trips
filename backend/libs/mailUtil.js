@@ -1,31 +1,37 @@
-import nodemailer from "nodemailer";
+import axios from "axios";
+
+const BREVO_API_KEY = process.env.BREVO_API_KEY;
+const FROM_EMAIL = process.env.FROM_EMAIL || "no-reply@yourdomain.com";
+const FROM_NAME = process.env.FROM_NAME || "YourApp";
 
 /**
- * Create transporter for Brevo (Sendinblue) SMTP
- */
-const transporter = nodemailer.createTransport({
-  host: process.env.BREVO_SMTP_HOST || "smtp-relay.brevo.com",
-  port: 587,                // TLS port
-  secure: false,            // use STARTTLS
-  auth: {
-    user: process.env.BREVO_SMTP_USER, // Brevo SMTP login (your account email)
-    pass: process.env.BREVO_SMTP_PASS, // Brevo SMTP API key / password
-  },
-});
-
-/**
- * Generic Email Sender
+ * Generic Email Sender using Brevo API
  */
 export const sendEmail = async ({ to, subject, html, attachments = [] }) => {
-  const mailOptions = {
-    from: process.env.FROM_EMAIL || "no-reply@yourdomain.com",
-    to,
-    subject,
-    html,
-    attachments,
-  };
+  try {
+    const body = {
+      sender: { name: FROM_NAME, email: FROM_EMAIL },
+      to: [{ email: to }],
+      subject,
+      htmlContent: html
+    };
 
-  return transporter.sendMail(mailOptions);
+    const response = await axios.post(
+      "https://api.brevo.com/v3/smtp/email",
+      body,
+      {
+        headers: {
+          "Content-Type": "application/json",
+          "api-key": BREVO_API_KEY,
+        },
+      }
+    );
+
+    return response.data;
+  } catch (err) {
+    console.error("Brevo API Error:", err.response?.data || err.message);
+    throw err;
+  }
 };
 
 /**
