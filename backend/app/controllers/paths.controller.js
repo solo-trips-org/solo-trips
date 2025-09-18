@@ -9,65 +9,88 @@ async function ensurePlace(session, placeId) {
   if (!mongoose.Types.ObjectId.isValid(placeId)) {
     throw new Error("Invalid place ObjectId");
   }
-
   const query = `
     MERGE (p:Place {mongoId: $placeId})
     RETURN p
   `;
-
   const result = await session.run(query, { placeId });
   return result.records[0]?.get("p").properties;
+}
+
+/**
+ * Refresh GDS in-memory graph
+ */
+async function refreshGDSGraph(session) {
+  const query = `
+    CALL gds.graph.exists('placesGraph') YIELD exists
+    WITH exists
+    CALL apoc.do.when(
+      exists,
+      'CALL gds.graph.drop("placesGraph") YIELD graphName RETURN graphName',
+      '',
+      {}
+    ) YIELD value
+    CALL gds.graph.project(
+      'placesGraph',
+      'Place',
+      {
+        PATH_TO: {
+          type: 'PATH_TO',
+          properties: ['distance'], // only numeric
+          orientation: 'NATURAL'
+        }
+      }
+    )
+    YIELD graphName
+    RETURN graphName
+  `;
+  await session.run(query);
 }
 
 /**
  * Create a Path (relationship) between two places
  */
 export const createPath = async (req, res) => {
-  const { fromPlaceId, toPlaceId, mode, distance, isOneway, direction } = req.body;
-
+  const { fromPlaceId, toPlaceId, mode, distance, direction, roadId } = req.body;
   const session = getSession();
   try {
-    // Ensure both places exist
     await ensurePlace(session, fromPlaceId);
     await ensurePlace(session, toPlaceId);
 
     let query = "";
 
     if (direction === "both") {
-      // Create both directions
       query = `
         MATCH (a:Place {mongoId: $fromId}), (b:Place {mongoId: $toId})
         MERGE (a)-[r1:PATH_TO {
           mode: $mode,
           distance: $distance,
-          isOneway: $isOneway
+          roadId: $roadId
         }]->(b)
         MERGE (b)-[r2:PATH_TO {
           mode: $mode,
           distance: $distance,
-          isOneway: $isOneway
+          roadId: $roadId
         }]->(a)
         RETURN a, b, r1, r2
       `;
     } else if (direction === "from") {
-      // Only fromPlace -> toPlace
       query = `
         MATCH (a:Place {mongoId: $fromId}), (b:Place {mongoId: $toId})
         MERGE (a)-[r:PATH_TO {
           mode: $mode,
           distance: $distance,
-          isOneway: $isOneway
+          roadId: $roadId
         }]->(b)
         RETURN a, b, r
       `;
     } else if (direction === "to") {
-      // Only toPlace -> fromPlace
       query = `
         MATCH (a:Place {mongoId: $fromId}), (b:Place {mongoId: $toId})
         MERGE (b)-[r:PATH_TO {
           mode: $mode,
           distance: $distance,
-          isOneway: $isOneway
+          roadId: $roadId
         }]->(a)
         RETURN a, b, r
       `;
@@ -80,10 +103,11 @@ export const createPath = async (req, res) => {
       toId: toPlaceId,
       mode,
       distance,
-      isOneway,
+      roadId,
     });
 
-    // return all created relationships
+    await refreshGDSGraph(session);
+
     const response = result.records.map(record => ({
       from: record.get("a").properties,
       to: record.get("b").properties,
@@ -100,25 +124,19 @@ export const createPath = async (req, res) => {
   }
 };
 
-
 /**
  * Get all Paths with their Places
  */
 export const getPaths = async (req, res) => {
   const session = getSession();
   try {
-    const query = `
-      MATCH (a:Place)-[r:PATH_TO]->(b:Place)
-      RETURN a, r, b
-    `;
+    const query = `MATCH (a:Place)-[r:PATH_TO]->(b:Place) RETURN a, r, b`;
     const result = await session.run(query);
-
-    const paths = result.records.map((rec) => ({
+    const paths = result.records.map(rec => ({
       from: rec.get("a").properties,
       to: rec.get("b").properties,
-      path: rec.get("r").properties,
+      path: rec.get("r").properties
     }));
-
     res.json(paths);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -132,8 +150,7 @@ export const getPaths = async (req, res) => {
  */
 export const updatePath = async (req, res) => {
   const { fromPlaceId, toPlaceId, updates } = req.body;
-  const { mode, distance, isOneway, direction } = updates;
-
+  const { mode, distance, direction, roadId } = updates;
   const session = getSession();
   try {
     const query = `
@@ -141,8 +158,7 @@ export const updatePath = async (req, res) => {
       SET r += {
         mode: coalesce($mode, r.mode),
         distance: coalesce($distance, r.distance),
-        isOneway: coalesce($isOneway, r.isOneway),
-        direction: coalesce($direction, r.direction)
+        roadId: coalesce($roadId, r.roadId)
       }
       RETURN a, r, b
     `;
@@ -152,19 +168,20 @@ export const updatePath = async (req, res) => {
       toId: toPlaceId,
       mode,
       distance,
-      isOneway,
-      direction,
+      roadId,
     });
 
     if (result.records.length === 0) {
       return res.status(404).json({ error: "Path not found" });
     }
 
+    await refreshGDSGraph(session);
+
     const record = result.records[0];
     res.json({
       from: record.get("a").properties,
       to: record.get("b").properties,
-      path: record.get("r").properties,
+      path: record.get("r").properties
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -185,16 +202,11 @@ export const deletePath = async (req, res) => {
       DELETE r
       RETURN COUNT(r) AS deleted
     `;
-
-    const result = await session.run(query, {
-      fromId: fromPlaceId,
-      toId: toPlaceId,
-    });
-
+    const result = await session.run(query, { fromId: fromPlaceId, toId: toPlaceId });
     const deleted = result.records[0].get("deleted").toNumber();
-    if (deleted === 0) {
-      return res.status(404).json({ error: "Path not found" });
-    }
+    if (deleted === 0) return res.status(404).json({ error: "Path not found" });
+
+    await refreshGDSGraph(session);
 
     res.json({ message: "Path deleted" });
   } catch (err) {
@@ -204,30 +216,49 @@ export const deletePath = async (req, res) => {
   }
 };
 
+/**
+ * Ensure GDS graph exists
+ */
+async function ensureGDSGraph(session) {
+  const checkQuery = `CALL gds.graph.exists('placesGraph') YIELD exists RETURN exists`;
+  const result = await session.run(checkQuery);
+  const exists = result.records[0].get('exists');
+  if (!exists) {
+    await session.run(`
+      CALL gds.graph.project(
+        'placesGraph',
+        'Place',
+        {
+          PATH_TO: {
+            type: 'PATH_TO',
+            properties: ['distance','mode','roadId'],
+            orientation: 'NATURAL'
+          }
+        }
+      )
+    `);
+  }
+}
 
 /**
  * Find optimal path including user-defined waypoints
- * Query: fromPlaceId, toPlaceId, waypoints=[id1,id2,...], mode (optional)
  */
 export const findOptimalPathWithWaypoints = async (req, res) => {
-  let { fromPlaceId, toPlaceId, waypoints, mode } = req.body;
-
-  // Validate inputs
+  let { fromPlaceId, toPlaceId, waypoints } = req.body;
   const allIds = [fromPlaceId, ...(waypoints || []), toPlaceId];
   if (!allIds.every(id => mongoose.Types.ObjectId.isValid(id))) {
     return res.status(400).json({ error: "Invalid ObjectId(s)" });
   }
-
-  // Normalize waypoints array
   if (!Array.isArray(waypoints)) waypoints = [];
 
   const session = getSession();
+  await ensureGDSGraph(session);
+
   try {
     let totalDistance = 0;
     let fullPlaces = [];
     let fullSegments = [];
 
-    // Build sequence: start → waypoints → end
     const stops = [fromPlaceId, ...waypoints, toPlaceId];
 
     for (let i = 0; i < stops.length - 1; i++) {
@@ -236,39 +267,26 @@ export const findOptimalPathWithWaypoints = async (req, res) => {
 
       const query = `
         MATCH (start:Place {mongoId: $fromId}), (end:Place {mongoId: $toId})
-        CALL gds.shortestPath.dijkstra.stream({
-          sourceNode: start,
-          targetNode: end,
-          relationshipProjection: {
-            PATH_TO: {
-              type: "PATH_TO",
-              properties: ["distance","mode","isOneway","direction"],
-              orientation: "NATURAL"
-            }
-          },
-          nodeProjection: "Place",
-          relationshipWeightProperty: "distance"
+        WITH id(start) AS startId, id(end) AS endId
+        CALL gds.shortestPath.dijkstra.stream('placesGraph', {
+          sourceNode: startId,
+          targetNode: endId,
+          relationshipWeightProperty: 'distance'
         })
-        YIELD totalCost, path
-        RETURN totalCost, 
-               [node IN nodes(path) | node.mongoId] AS places,
+        YIELD totalCost, nodeIds, path
+        RETURN totalCost,
+               [nodeId IN nodeIds | gds.util.asNode(nodeId).mongoId] AS places,
                [rel IN relationships(path) | {
                  from: startNode(rel).mongoId,
                  to: endNode(rel).mongoId,
                  mode: rel.mode,
                  distance: rel.distance,
-                 isOneway: rel.isOneway,
-                 direction: rel.direction
+                 roadId: rel.roadId
                }] AS segments
         LIMIT 1
       `;
 
-      const result = await session.run(query, {
-        fromId: startId,
-        toId: endId,
-        mode,
-      });
-
+      const result = await session.run(query, { fromId: startId, toId: endId });
       if (result.records.length === 0) {
         return res.status(404).json({ error: `No path found from ${startId} → ${endId}` });
       }
@@ -279,20 +297,15 @@ export const findOptimalPathWithWaypoints = async (req, res) => {
       const segmentSegments = record.get("segments");
 
       totalDistance += segmentDistance;
-
-      // Merge places (avoid duplicating overlap at boundaries)
-      if (fullPlaces.length > 0) {
-        fullPlaces.pop(); // remove last place to avoid duplication
-      }
+      if (fullPlaces.length > 0) fullPlaces.pop();
       fullPlaces.push(...segmentPlaces);
-
       fullSegments.push(...segmentSegments);
     }
 
     res.json({
       totalDistance,
       places: fullPlaces,
-      segments: fullSegments,
+      segments: fullSegments
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

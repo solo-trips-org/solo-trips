@@ -42,6 +42,7 @@ import {
 } from "./app/controllers/rating.controller.js";
 import {
   createPath,
+  deletePath,
   findOptimalPathWithWaypoints,
   getPaths,
 } from "./app/controllers/paths.controller.js";
@@ -85,7 +86,7 @@ router.use("/guides", requireAuth, createCrud(Guide,{
     remove: [allowedRoles("admin")]
   }
 }));
-router.use("/guides", requireAuth, createCrud(Hotel,{
+router.use("/hotels", requireAuth, createCrud(Hotel,{
   middlewares:{
     create: [allowedRoles("admin")],
     update: [allowedRoles("admin")],
@@ -120,6 +121,7 @@ router.get("/ratings/guide/:guideId", getGuideRatings);
 
 router.get("/paths",requireAuth, getPaths);
 router.post("/paths", requireAuth, createPath);
+router.delete("/paths",requireAuth, deletePath);
 router.post("/find/path", requireAuth, findOptimalPathWithWaypoints);
 
 router.post("/media/upload", uploadMiddleware.single("file"), uploadMedia);

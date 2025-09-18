@@ -12,6 +12,5 @@ export const driver = neo4j.driver(
 
 // Function to get a session
 export function getSession(database = "neo4j") {
-  console.log(`Neo4j connected to ${NEO4J_URI}`);
   return driver.session({ database });
 }
