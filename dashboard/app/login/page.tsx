@@ -22,7 +22,7 @@ export default function LoginPage() {
             const res = await fetch(`https://trips-api.tselven.com/api/login`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ username, password }),
+                body: JSON.stringify({ username, password, role: "admin" }),
             });
             if (!res.ok) {
                 const errorData = await res.json();
