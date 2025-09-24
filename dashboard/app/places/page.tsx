@@ -24,7 +24,11 @@ type Place = {
   __v: number;
 };
 
+// Mock media type and API for demonstration (replace with your actual media API)
+type Media = { id: string; url: string; name: string };
+
 const API_BASE = "https://trips-api.tselven.com/api/places";
+const MEDIA_API = "https://trips-api.tselven.com/api/media"; // Replace with your actual media API
 
 export default function PlacesPage() {
   const [places, setPlaces] = useState<Place[]>([]);
@@ -40,6 +44,8 @@ export default function PlacesPage() {
   const [modalMode, setModalMode] = useState<"add" | "edit" | "view">("add");
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const [formData, setFormData] = useState<Partial<Place>>({});
+  const [mediaModalOpen, setMediaModalOpen] = useState(false);
+  const [mediaItems, setMediaItems] = useState<Media[]>([]);
 
   const fetchPlaces = async (pageNum: number = page, limitNum: number = limit) => {
     try {
@@ -58,6 +64,20 @@ export default function PlacesPage() {
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchMedia = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(MEDIA_API, {
+        headers: token ? { "Authorization": `Bearer ${token}` } : {},
+      });
+      if (!response.ok) throw new Error("Failed to fetch media");
+      const data = await response.json();
+      setMediaItems(Array.isArray(data) ? data : []);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to fetch media");
     }
   };
 
@@ -160,6 +180,20 @@ export default function PlacesPage() {
     setModalOpen(false);
     setSelectedPlace(null);
     setFormData({});
+  };
+
+  const openMediaModal = async () => {
+    await fetchMedia();
+    setMediaModalOpen(true);
+  };
+
+  const closeMediaModal = () => {
+    setMediaModalOpen(false);
+  };
+
+  const selectMedia = (url: string) => {
+    setFormData({ ...formData, image: url });
+    setMediaModalOpen(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -288,7 +322,7 @@ export default function PlacesPage() {
           </div>
         </div>
 
-        {/* Modal */}
+        {/* Place Modal */}
         {modalOpen && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div className="bg-gray-800 rounded-xl p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto">
@@ -307,9 +341,7 @@ export default function PlacesPage() {
                   <p><strong>Description:</strong> {selectedPlace.description}</p>
                   <p><strong>Category:</strong> {selectedPlace.category}</p>
                   <img src={selectedPlace.image} alt={selectedPlace.name} className="w-full h-48 object-cover rounded" />
-                  <p><strong>Address:</strong> {selectedPlace.address.street}, {selectedPlace.address.city}, {selectedPlace.address.state}, {selectedPlace.address
-
-.zipCode}, {selectedPlace.address.country}</p>
+                  <p><strong>Address:</strong> {selectedPlace.address.street}, {selectedPlace.address.city}, {selectedPlace.address.state}, {selectedPlace.address.zipCode}, {selectedPlace.address.country}</p>
                   <p><strong>Opening Hours:</strong> {selectedPlace.openingHours}</p>
                   <p><strong>Fees:</strong> Required: {selectedPlace.fees.required ? "Yes" : "No"}, Amount: {selectedPlace.fees.amount} {selectedPlace.fees.currency}, Notes: {selectedPlace.fees.notes}</p>
                   <p><strong>Visit Duration:</strong> {selectedPlace.visitDuration.minMinutes} - {selectedPlace.visitDuration.maxMinutes} minutes</p>
@@ -321,96 +353,249 @@ export default function PlacesPage() {
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium mb-1">Name *</label>
-                    <input name="name" value={formData.name || ""} onChange={handleChange} className="w-full bg-gray-700 border border-gray-600 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" required />
+                    <input
+                      name="name"
+                      value={formData.name || ""}
+                      onChange={handleChange}
+                      className="w-full bg-gray-700 border border-gray-600 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      required
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-1">Description</label>
-                    <textarea name="description" value={formData.description || ""} onChange={handleChange} rows={3} className="w-full bg-gray-700 border border-gray-600 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+                    <textarea
+                      name="description"
+                      value={formData.description || ""}
+                      onChange={handleChange}
+                      rows={3}
+                      className="w-full bg-gray-700 border border-gray-600 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-1">Category *</label>
-                    <input name="category" value={formData.category || ""} onChange={handleChange} className="w-full bg-gray-700 border border-gray-600 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" required />
+                    <input
+                      name="category"
+                      value={formData.category || ""}
+                      onChange={handleChange}
+                      className="w-full bg-gray-700 border border-gray-600 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      required
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-1">Image URL</label>
-                    <input name="image" value={formData.image || ""} onChange={handleChange} className="w-full bg-gray-700 border border-gray-600 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+                    <input
+                      name="image"
+                      value={formData.image || ""}
+                      onChange={handleChange}
+                      onClick={openMediaModal}
+                      className="w-full bg-gray-700 border border-gray-600 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent cursor-pointer"
+                      placeholder="Click to select an image"
+                    />
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium mb-1">Street</label>
-                      <input name="address.street" value={formData.address?.street || ""} onChange={handleChange} className="w-full bg-gray-700 border border-gray-600 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+                      <input
+                        name="address.street"
+                        value={formData.address?.street || ""}
+                        onChange={handleChange}
+                        className="w-full bg-gray-700 border border-gray-600 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      />
                     </div>
                     <div>
                       <label className="block text-sm font-medium mb-1">City</label>
-                      <input name="address.city" value={formData.address?.city || ""} onChange={handleChange} className="w-full bg-gray-700 border border-gray-600 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+                      <input
+                        name="address.city"
+                        value={formData.address?.city || ""}
+                        onChange={handleChange}
+                        className="w-full bg-gray-700 border border-gray-600 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      />
                     </div>
                     <div>
                       <label className="block text-sm font-medium mb-1">State</label>
-                      <input name="address.state" value={formData.address?.state || ""} onChange={handleChange} className="w-full bg-gray-700 border border-gray-600 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+                      <input
+                        name="address.state"
+                        value={formData.address?.state || ""}
+                        onChange={handleChange}
+                        className="w-full bg-gray-700 border border-gray-600 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      />
                     </div>
                     <div>
                       <label className="block text-sm font-medium mb-1">Zip Code</label>
-                      <input name="address.zipCode" value={formData.address?.zipCode || ""} onChange={handleChange} className="w-full bg-gray-700 border border-gray-600 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+                      <input
+                        name="address.zipCode"
+                        value={formData.address?.zipCode || ""}
+                        onChange={handleChange}
+                        className="w-full bg-gray-700 border border-gray-600 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      />
                     </div>
                     <div className="md:col-span-2">
                       <label className="block text-sm font-medium mb-1">Country</label>
-                      <input name="address.country" value={formData.address?.country || ""} onChange={handleChange} className="w-full bg-gray-700 border border-gray-600 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+                      <input
+                        name="address.country"
+                        value={formData.address?.country || ""}
+                        onChange={handleChange}
+                        className="w-full bg-gray-700 border border-gray-600 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      />
                     </div>
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-1">Opening Hours</label>
-                    <input name="openingHours" value={formData.openingHours || ""} onChange={handleChange} className="w-full bg-gray-700 border border-gray-600 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+                    <input
+                      name="openingHours"
+                      value={formData.openingHours || ""}
+                      onChange={handleChange}
+                      className="w-full bg-gray-700 border border-gray-600 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    />
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="flex items-center">
-                        <input type="checkbox" name="fees.required" checked={formData.fees?.required || false} onChange={handleChange} className="mr-2 rounded" />
+                        <input
+                          type="checkbox"
+                          name="fees.required"
+                          checked={formData.fees?.required || false}
+                          onChange={handleChange}
+                          className="mr-2 rounded"
+                        />
                         Fees Required
                       </label>
                     </div>
                     <div>
                       <label className="block text-sm font-medium mb-1">Amount</label>
-                      <input type="number" name="fees.amount" value={formData.fees?.amount || 0} onChange={handleChange} className="w-full bg-gray-700 border border-gray-600 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" min="0" />
+                      <input
+                        type="number"
+                        name="fees.amount"
+                        value={formData.fees?.amount || 0}
+                        onChange={handleChange}
+                        className="w-full bg-gray-700 border border-gray-600 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        min="0"
+                      />
                     </div>
                     <div>
                       <label className="block text-sm font-medium mb-1">Currency</label>
-                      <input name="fees.currency" value={formData.fees?.currency || "LKR"} onChange={handleChange} className="w-full bg-gray-700 border border-gray-600 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+                      <input
+                        name="fees.currency"
+                        value={formData.fees?.currency || "LKR"}
+                        onChange={handleChange}
+                        className="w-full bg-gray-700 border border-gray-600 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      />
                     </div>
                     <div className="md:col-span-2">
                       <label className="block text-sm font-medium mb-1">Fees Notes</label>
-                      <input name="fees.notes" value={formData.fees?.notes || ""} onChange={handleChange} className="w-full bg-gray-700 border border-gray-600 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+                      <input
+                        name="fees.notes"
+                        value={formData.fees?.notes || ""}
+                        onChange={handleChange}
+                        className="w-full bg-gray-700 border border-gray-600 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      />
                     </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium mb-1">Min Visit (minutes)</label>
-                      <input type="number" name="visitDuration.minMinutes" value={formData.visitDuration?.minMinutes || 0} onChange={handleChange} className="w-full bg-gray-700 border border-gray-600 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" min="0" />
+                      <input
+                        type="number"
+                        name="visitDuration.minMinutes"
+                        value={formData.visitDuration?.minMinutes || 0}
+                        onChange={handleChange}
+                        className="w-full bg-gray-700 border border-gray-600 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        min="0"
+                      />
                     </div>
                     <div>
                       <label className="block text-sm font-medium mb-1">Max Visit (minutes)</label>
-                      <input type="number" name="visitDuration.maxMinutes" value={formData.visitDuration?.maxMinutes || 0} onChange={handleChange} className="w-full bg-gray-700 border border-gray-600 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" min="0" />
+                      <input
+                        type="number"
+                        name="visitDuration.maxMinutes"
+                        value={formData.visitDuration?.maxMinutes || 0}
+                        onChange={handleChange}
+                        className="w-full bg-gray-700 border border-gray-600 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        min="0"
+                      />
                     </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium mb-1">Longitude</label>
-                      <input type="number" step="0.0001" value={formData.location?.coordinates?.[0] || 0} onChange={(e) => handleCoordChange(0, e.target.value)} className="w-full bg-gray-700 border border-gray-600 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+                      <input
+                        type="number"
+                        step="0.0001"
+                        value={formData.location?.coordinates?.[0] || 0}
+                        onChange={(e) => handleCoordChange(0, e.target.value)}
+                        className="w-full bg-gray-700 border border-gray-600 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      />
                     </div>
                     <div>
                       <label className="block text-sm font-medium mb-1">Latitude</label>
-                      <input type="number" step="0.0001" value={formData.location?.coordinates?.[1] || 0} onChange={(e) => handleCoordChange(1, e.target.value)} className="w-full bg-gray-700 border border-gray-600 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+                      <input
+                        type="number"
+                        step="0.0001"
+                        value={formData.location?.coordinates?.[1] || 0}
+                        onChange={(e) => handleCoordChange(1, e.target.value)}
+                        className="w-full bg-gray-700 border border-gray-600 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      />
                     </div>
                   </div>
                   <div className="flex justify-end gap-2 mt-6">
-                    <button type="button" onClick={closeModal} className="px-4 py-2 bg-gray-600 rounded-lg hover:bg-gray-500 transition-colors">
+                    <button
+                      type="button"
+                      onClick={closeModal}
+                      className="px-4 py-2 bg-gray-600 rounded-lg hover:bg-gray-500 transition-colors"
+                    >
                       Cancel
                     </button>
-                    <button type="submit" className="px-4 py-2 bg-indigo-600 rounded-lg hover:bg-indigo-500 transition-colors">
+                    <button
+                      type="submit"
+                      className="px-4 py-2 bg-indigo-600 rounded-lg hover:bg-indigo-500 transition-colors"
+                    >
                       {modalMode === "add" ? "Create Place" : "Update Place"}
                     </button>
                   </div>
                 </form>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Media Modal */}
+        {mediaModalOpen && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-gray-800 rounded-xl p-6 w-full max-w-3xl max-h-[80vh] overflow-y-auto">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold">Select Media</h2>
+                <button onClick={closeMediaModal} className="text-gray-400 hover:text-white">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                {mediaItems.length > 0 ? (
+                  mediaItems.map((media) => (
+                    <div
+                      key={media.id}
+                      onClick={() => selectMedia(media.url)}
+                      className="cursor-pointer bg-gray-700 rounded-lg overflow-hidden hover:bg-gray-600 transition-colors"
+                    >
+                      <img
+                        src={media.url}
+                        alt={media.name}
+                        className="w-full h-32 object-cover"
+                      />
+                      <p className="p-2 text-sm text-gray-300 truncate">{media.name}</p>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-gray-300">No media available</p>
+                )}
+              </div>
+              <div className="flex justify-end mt-4">
+                <button
+                  onClick={closeMediaModal}
+                  className="px-4 py-2 bg-gray-600 rounded-lg hover:bg-gray-500 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
         )}
