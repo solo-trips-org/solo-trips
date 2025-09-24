@@ -1,115 +1,170 @@
-import React from 'react';
-import { View, Text, Image, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import React from "react";
+import { View, Text, Image, StyleSheet, ScrollView, TouchableOpacity } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter, useLocalSearchParams, Stack } from "expo-router";
+
+type FeesType = {
+  amount?: number | string;
+  currency?: string;
+  required?: boolean;
+  notes?: string;
+};
+
+type AddressType = {
+  street?: string;
+  city?: string;
+  state?: string;
+};
 
 export default function PlaceMoreDetails() {
   const router = useRouter();
-  const { id, name, image, rating, type } = useLocalSearchParams();
+  const {
+    id,
+    name,
+    image,
+    rating,
+    type,
+    description,
+    timing,
+    address,
+    fees,
+    schedule,
+    phone,
+    gender,
+    languages,
+  } = useLocalSearchParams();
+
+  // Safely parse fees
+  let parsedFees: FeesType = {};
+  try {
+    parsedFees = typeof fees === "string" ? JSON.parse(fees) : (fees as FeesType);
+  } catch (e) {
+    parsedFees = {};
+  }
+
+  // Safely parse address
+  let parsedAddress: AddressType = {};
+  try {
+    parsedAddress = typeof address === "string" ? JSON.parse(address) : (address as AddressType);
+  } catch (e) {
+    parsedAddress = {};
+  }
+
+  // Detect if it's a Guide
+  const isGuide = !!phone || !!gender || !!languages;
+
+  // Determine image source with fallback for Guide
+  const imageSource = image
+    ? { uri: Array.isArray(image) ? image[0] : image }
+    : isGuide
+    ? { uri: "https://cdn-icons-png.flaticon.com/512/149/149071.png" } // fallback guide image
+    : undefined;
+
+  // Parse languages nicely
+  let parsedLanguages: string | undefined;
+  if (languages) {
+    try {
+      let langs = typeof languages === "string" ? JSON.parse(languages) : languages;
+      if (Array.isArray(langs)) {
+        parsedLanguages = langs.join(", ");
+      } else {
+        parsedLanguages = langs;
+      }
+    } catch (e) {
+      parsedLanguages = languages as string;
+    }
+  }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#2E0740' }}>
-    
+    <>
+      {/* Header with back button only */}
+      <Stack.Screen
+        options={{
+          headerTitle: "",
+          headerTransparent: true,
+          headerLeft: () => (
+            <TouchableOpacity
+              onPress={() => router.back()}
+              style={{ padding: 15, marginBottom: 10 }}
+            >
+              <Ionicons name="chevron-back" size={24} color="white" />
+            </TouchableOpacity>
+          ),
+        }}
+      />
 
-      <ScrollView contentContainerStyle={{ paddingBottom: 30 }}>
-        {/* Place Image */}
-        <Image source={{ uri: image as string }} style={styles.placeImage} />
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#2E0740" }}>
+        <ScrollView contentContainerStyle={styles.container}>
+          {/* Image */}
+          {imageSource && (
+            <Image
+              source={imageSource}
+              style={isGuide ? styles.guideImage : styles.image}
+            />
+          )}
 
-        {/* Details */}
-        <View style={styles.detailsCard}>
-          <Text style={styles.placeName}>{name}</Text>
+          {/* Title */}
+          {name && <Text style={isGuide ? styles.guideTitle : styles.title}>{name}</Text>}
 
           {/* Rating */}
-          <View style={styles.ratingContainer}>
-            {Array.from({ length: Number(rating) }).map((_, i) => (
-              <Ionicons key={i} name="star" size={18} color="#FFD700" />
-            ))}
-          </View>
+          {rating && (
+            <View style={styles.ratingContainer}>
+              {Array.from({ length: Number(rating) || 0 }).map((_, i) => (
+                <Ionicons key={i} name="star" size={16} color="#FFD700" />
+              ))}
+            </View>
+          )}
 
-          {/* <Text style={styles.placeType}>{type}</Text> */}
+          {/* Type / Role */}
+          {type && <Text style={isGuide ? styles.guideType : styles.type}>{type}</Text>}
 
-          <Text style={styles.description}>
-            Nallur Kandaswamy Kovil, located in Jaffna, Sri Lanka, is a renowned Hindu
-            temple dedicated to Lord Murugan. Built in the 15th century, it showcases
-            stunning Dravidian architecture with intricate carvings and golden gopurams.
-            The temple is famous for its grand annual festival, attracting thousands of
-            devotees and tourists worldwide.
-          </Text>
+          {/* Description */}
+          {description && <Text style={isGuide ? styles.guideDescription : styles.description}>{description}</Text>}
 
-          <Text style={styles.subHeading}>Historical & Cultural Tourist</Text>
-          <Text style={styles.timing}>Opentime = 08.00 am - 06.00 pm</Text>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+          {/* Timing */}
+          {timing && <Text style={styles.info}> Time -  {timing}</Text>}
+
+          {/* Fees */}
+          {parsedFees?.amount != null && (
+            <Text style={styles.info}> Amount - {parsedFees.amount}</Text>
+          )}
+
+          {/* Phone, Gender, Languages – Guide Only */}
+          {isGuide && (
+            <View style={styles.guideDetails}>
+              {phone && <Text style={styles.guideInfo}> {phone}</Text>}
+              {gender && <Text style={styles.guideInfo}> {gender}</Text>}
+              {parsedLanguages && <Text style={styles.guideInfo}> {parsedLanguages}</Text>}
+            </View>
+          )}
+
+          {/* Address fields */}
+          {parsedAddress.street && <Text style={styles.info}> Street: {parsedAddress.street}</Text>}
+          {parsedAddress.city && <Text style={styles.info}>City: {parsedAddress.city}</Text>}
+          {parsedAddress.state && <Text style={styles.info}> State: {parsedAddress.state}</Text>}
+        </ScrollView>
+      </SafeAreaView>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  headerBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    height: 60,
-    backgroundColor: '#2E0740',
-    gap: 8,
-  },
-  backButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#3A0A55',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#c000ff',
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: 'white',
-  },
-  placeImage: {
-    width: '100%',
-    height: 220,
-    resizeMode: 'cover',
-  },
-  detailsCard: {
-    padding: 16,
-    backgroundColor: '#3A0A55',
-    borderRadius: 12,
-    margin: 16,
-  },
-  placeName: {
-    color: 'white',
-    fontSize: 22,
-    fontWeight: 'bold',
-    marginBottom: 8,
-  },
-  ratingContainer: {
-    flexDirection: 'row',
-    marginVertical: 4,
-  },
-  placeType: {
-    color: '#E6C4FF',
-    fontSize: 14,
-    marginBottom: 10,
-  },
-  description: {
-    color: '#ccc',
-    fontSize: 12,
-    lineHeight: 20,
-    marginBottom: 14,
-    textAlign: 'justify',
-  },
-  subHeading: {
-    color: '#FFD700',
-    fontWeight: '600',
-    fontSize: 15,
-  },
-  timing: {
-    color: 'white',
-    fontSize: 13,
-    marginTop: 5,
-  },
+  container: { padding: 16, paddingBottom: 100 },
+
+  // Default styles
+  image: { width: "100%", height: 200, borderRadius: 12, marginBottom: 16, marginTop: 50 },
+  title: { fontSize: 22, fontWeight: "bold", color: "white", marginBottom: 8, marginTop: 20, marginLeft: 10 },
+  type: { fontSize: 16, fontWeight: "600", color: "#E6C4FF", marginBottom: 8 },
+  description: { fontSize: 14, color: "#ccc", marginBottom: 12 },
+  info: { fontSize: 14, color: "#ccc", marginBottom: 6 },
+  ratingContainer: { flexDirection: "row", marginBottom: 8 },
+
+  // Guide-specific styles
+  guideImage: { width: "80%", height: 220, borderRadius: 12, marginBottom: 16, borderWidth: 1, borderColor: "#c000ff",marginTop: 50, alignSelf: "center" },
+  guideTitle: { fontSize: 24, fontWeight: "bold", color: "#f3f0e5ff", marginBottom: 8, marginTop: 20, marginLeft: 10 },
+  guideType: { fontSize: 16, fontWeight: "700", color: "#d1d0ceff", marginBottom: 8 },
+  guideDescription: { fontSize: 15, color: "#fff"},
+  guideDetails: {  borderRadius: 10, marginVertical: 8 },
+  guideInfo: { fontSize: 14, color: "#dddcd7ff", marginBottom: 4 },
 });
