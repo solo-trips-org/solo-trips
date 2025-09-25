@@ -28,6 +28,7 @@
     "@aws-sdk/s3-request-presigner": "^3.888.0",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
+    "dayjs": "^1.11.18",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
     "globals": "^16.3.0",

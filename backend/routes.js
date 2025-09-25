@@ -7,6 +7,7 @@ import {
   sendOTP,
   newOTP,
   resetPasswordWithOTP,
+  deleteAccount,
 } from "./app/controllers/auth.controller.js";
 import {
   uploadMedia,
@@ -39,6 +40,7 @@ import {
   getHotelRatings,
   getPlaceRatings,
 } from "./app/controllers/rating.controller.js";
+import { generateTripPlan } from "./app/controllers/planner.controller.js";
 
 const router = Router();
 
@@ -50,6 +52,7 @@ router.post("/logout", requireAuth, logout);
 router.post("/send-otp", sendOTP);
 router.post("/new-otp", newOTP);
 router.post("/forget-password", resetPasswordWithOTP);
+router.delete("/account",requireAuth,deleteAccount);
 
 router.use("/places", requireAuth, allowedRoles("admin"), createCrud(Place));
 router.use("/events", requireAuth, allowedRoles("admin"), createCrud(Event));
@@ -62,6 +65,8 @@ router.get("/near/hotels", requireAuth, getNearbyHotels);
 router.get("/near/events", requireAuth, getNearbyEvents);
 router.get("/near/guides", requireAuth, getNearbyGuides);
 
+
+router.post("/plan-trip",generateTripPlan);
 
 router.get(
   "/analytics",
