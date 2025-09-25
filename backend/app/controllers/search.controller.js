@@ -14,7 +14,7 @@ export const globalSearch = async (req, res) => {
       startDate,
       endDate,
       city,
-      language,
+      language
     } = req.query;
 
     const regex = q ? new RegExp(q, "i") : null;
@@ -65,7 +65,7 @@ export const globalSearch = async (req, res) => {
     // ---------- Guide filter ----------
     const guideFilter = {};
     if (regex) {
-      guideFilter.$or = [{ name: regex }, { languages: regex }];
+      guideFilter.$or = [{ name: regex }, { languages: regex },{ "address.city": regex }];
     }
     if (city) {
       guideFilter["address.city"] = new RegExp(city, "i");
