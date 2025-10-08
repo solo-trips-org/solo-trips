@@ -41,7 +41,7 @@ import {
   getHotelRatings,
   getPlaceRatings,
 } from "./app/controllers/rating.controller.js";
-import { generateTripPlan } from "./app/controllers/planner.controller.js";
+import { generateTripPlan, getPlanHistory } from "./app/controllers/planner.controller.js";
 import {
   getGlobalSettings,
   getOneGlobalSetting,
@@ -60,31 +60,31 @@ router.post("/logout", requireAuth, logout);
 router.post("/send-otp", sendOTP);
 router.post("/new-otp", newOTP);
 router.post("/forget-password", resetPasswordWithOTP);
-router.delete("/account",requireAuth,deleteAccount);
+router.delete("/account", requireAuth, deleteAccount);
 
-router.use("/places", requireAuth, createCrud(Place,{
-  middlewares:{
+router.use("/places", requireAuth, createCrud(Place, {
+  middlewares: {
     create: [allowedRoles("admin")],
     update: [allowedRoles("admin")],
     remove: [allowedRoles("admin")]
   }
 }));
-router.use("/events", requireAuth, createCrud(Event,{
-  middlewares:{
+router.use("/events", requireAuth, createCrud(Event, {
+  middlewares: {
     create: [allowedRoles("admin")],
     update: [allowedRoles("admin")],
     remove: [allowedRoles("admin")]
   }
 }));
-router.use("/guides", requireAuth, createCrud(Guide,{
-  middlewares:{
+router.use("/guides", requireAuth, createCrud(Guide, {
+  middlewares: {
     create: [allowedRoles("admin")],
     update: [allowedRoles("admin")],
     remove: [allowedRoles("admin")]
   }
 }));
-router.use("/hotels", requireAuth, createCrud(Hotel,{
-  middlewares:{
+router.use("/hotels", requireAuth, createCrud(Hotel, {
+  middlewares: {
     create: [allowedRoles("admin")],
     update: [allowedRoles("admin")],
     remove: [allowedRoles("admin")]
@@ -98,7 +98,8 @@ router.get("/near/hotels", requireAuth, getNearbyHotels);
 router.get("/near/events", requireAuth, getNearbyEvents);
 router.get("/near/guides", requireAuth, getNearbyGuides);
 
-router.post("/plan-trip",generateTripPlan);
+router.post("/plan-trip", requireAuth, generateTripPlan);
+router.get("/history", requireAuth, getPlanHistory);
 router.get(
   "/analytics",
   requireAuth,
@@ -123,8 +124,8 @@ router.get("/media", listMedia);
 router.get("/media/:id", getPrivateMediaUrl);
 router.delete("media/:id", deleteMedia);
 
-router.get("/settings",requireAuth, getGlobalSettings);
-router.get("/settings/:key", requireAuth,getOneGlobalSetting);
-router.post("/settings/:key",requireAuth, allowedRoles("admin"), updateGlobalSetting);
+router.get("/settings", requireAuth, getGlobalSettings);
+router.get("/settings/:key", requireAuth, getOneGlobalSetting);
+router.post("/settings/:key", requireAuth, allowedRoles("admin"), updateGlobalSetting);
 
 export default router;
