@@ -1,6 +1,7 @@
 import { Place } from "../models/place.model.js";
 import { Hotel } from "../models/hotel.model.js";
 import { Event } from "../models/event.model.js";
+import History from "../models/histrory.model.js";
 
 const shuffle = (arr) => arr.sort(() => Math.random() - 0.5);
 
@@ -109,10 +110,35 @@ export const generateTripPlan = async (req, res) => {
       }
     }
 
+    // Persist generated plan to user's history (best-effort)
+    try {
+      const historyEntry = {
+        inputs: {
+          fromPlace,
+          toPlace,
+          wayPoints,
+          personCount,
+          daysOfTrip,
+          startTimestamp,
+          endTimestamp,
+        },
+        result: {
+          days: dailyPlan,
+        },
+      };
+
+      // req.user expected to be set by requireAuth middleware
+      if (req.user?.id) {
+        await History.create({ user: req.user.id, plan: historyEntry });
+      }
+    } catch (saveErr) {
+      console.error("Failed to save plan history:", saveErr);
+      // Non-blocking: we still return the generated plan
+    }
+
     res.status(200).json({ 
       success: true, 
       days: dailyPlan,
-      //note: "This plan is AI-styled with randomness and variety"
     });
 
   } catch (err) {
@@ -120,3 +146,29 @@ export const generateTripPlan = async (req, res) => {
     res.status(500).json({ success: false, error: "Server error" });
   }
 };
+
+
+export const getPlanHistory = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" });
+
+    const page = Math.max(1, parseInt(req.query.page || "1", 10));
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit || "20", 10)));
+    const skip = (page - 1) * limit;
+
+    const [plans, total] = await Promise.all([
+      History.find({ user: userId })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      History.countDocuments({ user: userId })
+    ]);
+
+    res.status(200).json({ success: true, plans, meta: { page, limit, total } });
+  } catch (err) {
+    console.error("Get plan history error:", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+}
