@@ -2,6 +2,7 @@ import { Place } from "../models/place.model.js";
 import { Hotel } from "../models/hotel.model.js";
 import { Event } from "../models/event.model.js";
 import History from "../models/histrory.model.js";
+import * as rabbitmq from "../../config/rabbitmq.js";
 
 const shuffle = (arr) => arr.sort(() => Math.random() - 0.5);
 
@@ -147,6 +148,77 @@ export const generateTripPlan = async (req, res) => {
   }
 };
 
+
+export const generateTripPlanAsync = async (req, res) => {
+  try {
+    const { 
+      fromPlace, 
+      toPlace, 
+      wayPoints = [], 
+      personCount = 1, 
+      daysOfTrip = 1, 
+      startTimestamp, 
+      endTimestamp 
+    } = req.body;
+
+    // Validate required fields
+    if (!fromPlace || !toPlace) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "fromPlace and toPlace are required" 
+      });
+    }
+
+    // Create a unique request ID
+    const requestId = `trip-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+    // Prepare message payload
+    const messagePayload = {
+      requestId,
+      userId: req.user?.id,
+      tripDetails: {
+        fromPlace,
+        toPlace,
+        wayPoints,
+        personCount,
+        daysOfTrip,
+        startTimestamp,
+        endTimestamp
+      },
+      timestamp: new Date().toISOString()
+    };
+
+    // Queue the trip planning request
+    await rabbitmq.publishMessage('trip.planning.request', messagePayload);
+
+    // Create initial history entry with pending status
+    if (req.user?.id) {
+      await History.create({
+        user: req.user.id,
+        requestId,
+        status: 'pending',
+        plan: {
+          inputs: messagePayload.tripDetails,
+          result: null
+        }
+      });
+    }
+
+    res.status(202).json({
+      success: true,
+      message: "Trip planning request has been queued",
+      requestId,
+      status: 'pending'
+    });
+
+  } catch (err) {
+    console.error("Async TripPlan error:", err);
+    res.status(500).json({ 
+      success: false, 
+      error: "Failed to queue trip planning request" 
+    });
+  }
+};
 
 export const getPlanHistory = async (req, res) => {
   try {
