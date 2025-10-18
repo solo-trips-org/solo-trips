@@ -83,7 +83,7 @@ export default function SettingsPage() {
       </div>
     );
   }
-
+  
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black text-white p-6 md:p-8 max-w-7xl mx-auto space-y-6">
   <h1 className="text-2xl font-bold tracking-tight mb-6">App Settings</h1>
