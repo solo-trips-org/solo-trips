@@ -13,6 +13,8 @@ import {
   Platform,
   Keyboard,
   TouchableWithoutFeedback,
+  Dimensions,
+  StatusBar,
 } from "react-native";
 import SafeArea from "@/components/SafeArea";
 import { ThemedView } from "@/components/ThemedView";
@@ -21,7 +23,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { LinearGradient } from 'expo-linear-gradient';
 
+const { width, height } = Dimensions.get('window');
 const categories = ["Places", "Hotels", "Event", "Guide"];
 
 export default function SearchScreen() {
@@ -212,238 +216,530 @@ export default function SearchScreen() {
     router.push({ pathname: "/PlaceMoreDetails", params });
   };
 
+  const getCategoryIcon = (category: string) => {
+    const iconMap: Record<string, string> = {
+      Places: "location",
+      Hotels: "bed",
+      Event: "calendar",
+      Guide: "person",
+    };
+    return iconMap[category] || "search";
+  };
+
   return (
     <SafeArea>
-      <ThemedView style={{ flex: 1, backgroundColor: "#2E0740" }}>
-        {/* Dismiss keyboard when tapping outside */}
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-          <View style={{ flex: 1 }}>
-            {/* Header */}
-            <View style={styles.headerBar}>
-              <View style={styles.headerLogoContainer}>
-                <Image
-                  source={require("@/assets/images/logo1.png")}
-                  style={styles.reactLogo}
-                />
-                <Text style={styles.headerTitle}>Traveler</Text>
-              </View>
-            </View>
-            <View style={styles.headerLine} />
+      <StatusBar barStyle="light-content" backgroundColor="#7C3AED" />
 
-            {/* 🔑 KeyboardAvoidingView wraps ALL scroll content */}
+      {/* Gradient Header */}
+      <LinearGradient
+        colors={['#3A0751', "#7C3AED", '#3A0751']}
+        style={styles.gradientHeader}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      >
+        {/* Decorative Background Elements */}
+        <View style={styles.headerBackground}>
+          <View style={[styles.decorativeCircle, styles.circle1]} />
+          <View style={[styles.decorativeCircle, styles.circle2]} />
+        </View>
+
+        <View style={styles.header}>
+          <View style={styles.headerContent}>
+            <View style={styles.logoContainer}>
+              <Image
+                source={require("@/assets/images/logo1.png")}
+                style={styles.logo}
+              />
+            </View>
+            <View style={styles.headerTextContainer}>
+              <Text style={styles.headerTitle}>Search & Discover</Text>
+              <Text style={styles.headerSubtitle}>Find amazing places around you</Text>
+            </View>
+          </View>
+        </View>
+      </LinearGradient>
+
+      <View style={styles.container}>
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+          <View style={styles.innerContainer}>
             <KeyboardAvoidingView
               behavior={Platform.OS === "ios" ? "padding" : undefined}
-              style={{ flex: 1 }}
-              keyboardVerticalOffset={80} // keep tab bar fixed
+              style={styles.keyboardView}
+              keyboardVerticalOffset={80}
             >
-              <ScrollView
-                contentContainerStyle={{ paddingBottom: 100 }}
-                keyboardShouldPersistTaps="handled"
-              >
-                {/* Search Input */}
-                <View style={styles.searchWrapper}>
-                  <View style={styles.searchInputWrapper}>
-                    <Ionicons
-                      name="search"
-                      size={15}
-                      color="#ccc"
-                      style={{ marginHorizontal: 8 }}
-                    />
+              {/* Search Section */}
+              <View style={styles.searchSection}>
+                <View style={styles.searchContainer}>
+                  <View style={styles.searchInputContainer}>
+                    <Ionicons name="search" size={20} color="#7C3AED" style={styles.searchIcon} />
                     <TextInput
                       style={styles.searchInput}
-                      placeholder="Search places, hotel, guide..."
-                      placeholderTextColor="#ccc"
+                      placeholder="Search places, hotels, guides..."
+                      placeholderTextColor="#999"
                       value={query}
                       onChangeText={(text) => setQuery(text)}
                     />
+                    {query ? (
+                      <TouchableOpacity onPress={() => setQuery("")} style={styles.clearButton}>
+                        <Ionicons name="close-circle" size={20} color="#ccc" />
+                      </TouchableOpacity>
+                    ) : null}
                   </View>
                 </View>
 
-                {/* Category Tabs */}
-                <View style={styles.tabContainer}>
+                {/* Modern Category Tabs */}
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.categoryScrollContainer}
+                >
                   {categories.map((cat) => (
                     <TouchableOpacity
                       key={cat}
                       onPress={() => setSelectedCategory(cat)}
                       style={[
-                        styles.tab,
-                        selectedCategory === cat && styles.activeTab,
+                        styles.categoryTab,
+                        selectedCategory === cat && styles.activeCategoryTab,
                       ]}
+                      activeOpacity={0.8}
                     >
+                      <Ionicons
+                        name={getCategoryIcon(cat) as any}
+                        size={18}
+                        color={selectedCategory === cat ? "#fff" : "#7C3AED"}
+                        style={styles.categoryIcon}
+                      />
                       <Text
                         style={[
-                          styles.tabText,
-                          selectedCategory === cat && styles.activeTabText,
+                          styles.categoryText,
+                          selectedCategory === cat && styles.activeCategoryText,
                         ]}
                       >
                         {cat}
                       </Text>
                     </TouchableOpacity>
                   ))}
-                </View>
+                </ScrollView>
+              </View>
 
-                {/* Results */}
-                <View style={styles.cardList}>
+              {/* Results Section */}
+              <View style={styles.resultsSection}>
+                <ScrollView
+                  style={styles.scrollView}
+                  contentContainerStyle={styles.scrollContent}
+                  keyboardShouldPersistTaps="handled"
+                  showsVerticalScrollIndicator={false}
+                >
                   {loading ? (
-                    <ActivityIndicator
-                      size="large"
-                      color="#c000ff"
-                      style={{ marginTop: 20 }}
-                    />
+                    <View style={styles.loadingContainer}>
+                      <ActivityIndicator size="large" color="#7C3AED" />
+                      <Text style={styles.loadingText}>Searching...</Text>
+                    </View>
                   ) : results.length > 0 ? (
-                    results.map((item: any, index: number) => {
-                      const rating = parseInt(
-                        item.averageRating || "0",
-                        10
-                      );
+                    <View style={styles.resultsContainer}>
+                      <Text style={styles.resultsHeader}>
+                        Found {results.length} {selectedCategory.toLowerCase()}
+                      </Text>
+                      {results.map((item: any, index: number) => {
+                        const rating = parseInt(item.averageRating || "0", 10);
 
-                      return (
-                        <TouchableOpacity
-                          key={`${item._id}-${index}`}
-                          style={styles.card}
-                          onPress={() => handleNavigate(item)}
-                        >
-                          <Image
-                            source={{ uri: item.image }}
-                            style={styles.cardImage}
-                          />
-                          <View style={styles.cardContent}>
-                            <Text style={styles.cardTitle}>
-                              {item.name || item.title}
-                            </Text>
-
-                            {/* ⭐ Average Rating */}
-                            <View style={styles.ratingContainer}>
-                              {Array.from({ length: 5 }).map((_, i) => (
+                        return (
+                          <TouchableOpacity
+                            key={`${item._id}-${index}`}
+                            style={styles.resultCard}
+                            onPress={() => handleNavigate(item)}
+                            activeOpacity={0.9}
+                          >
+                            <View style={styles.cardImageContainer}>
+                              <Image
+                                source={{ uri: item.image }}
+                                style={styles.cardImage}
+                                resizeMode="cover"
+                              />
+                              <View style={styles.categoryBadge}>
                                 <Ionicons
-                                  key={i}
-                                  name={i < rating ? "star" : "star-outline"}
-                                  size={14}
-                                  color="#FFD700"
+                                  name={getCategoryIcon(selectedCategory) as any}
+                                  size={12}
+                                  color="#fff"
                                 />
-                              ))}
+                              </View>
                             </View>
 
-                            <Text style={styles.cardSubtitle}>
-                              {item.phone || item.category || ""}
-                            </Text>
-                          </View>
-                        </TouchableOpacity>
-                      );
-                    })
+                            <View style={styles.cardContent}>
+                              <Text style={styles.cardTitle} numberOfLines={2}>
+                                {item.name || item.title}
+                              </Text>
+
+                              {/* Rating Stars */}
+                              <View style={styles.ratingContainer}>
+                                <View style={styles.starsContainer}>
+                                  {Array.from({ length: 5 }).map((_, i) => (
+                                    <Ionicons
+                                      key={i}
+                                      name={i < rating ? "star" : "star-outline"}
+                                      size={14}
+                                      color="#FFD700"
+                                    />
+                                  ))}
+                                </View>
+                                <Text style={styles.ratingText}>
+                                  {rating > 0 ? `${rating}.0` : "No rating"}
+                                </Text>
+                              </View>
+
+                              <Text style={styles.cardSubtitle} numberOfLines={1}>
+                                {item.phone || item.category || item.type || ""}
+                              </Text>
+
+                              <View style={styles.cardFooter}>
+                                <Ionicons name="chevron-forward" size={16} color="#7C3AED" />
+                              </View>
+                            </View>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  ) : query ? (
+                    <View style={styles.emptyStateContainer}>
+                      <Ionicons name="search-outline" size={64} color="#ccc" />
+                      <Text style={styles.emptyStateTitle}>No Results Found</Text>
+                      <Text style={styles.emptyStateText}>
+                        Try searching with different keywords or check another category
+                      </Text>
+                    </View>
                   ) : (
-                    query && (
-                      <ThemedText style={styles.noResult}>
-                        No results found
-                      </ThemedText>
-                    )
+                    <View style={styles.initialStateContainer}>
+                      <Ionicons name="compass-outline" size={64} color="#7C3AED" />
+                      <Text style={styles.initialStateTitle}>Start Your Search</Text>
+                      <Text style={styles.initialStateText}>
+                        Type in the search box above to discover amazing places, hotels, events, and guides
+                      </Text>
+                    </View>
                   )}
-                </View>
-              </ScrollView>
+                </ScrollView>
+              </View>
             </KeyboardAvoidingView>
 
+            {/* Loading Overlay */}
             {detailsLoading && (
-              <ActivityIndicator
-                size="large"
-                color="#c000ff"
-                style={{
-                  position: "absolute",
-                  top: "50%",
-                  left: "50%",
-                  transform: [{ translateX: -20 }, { translateY: -20 }],
-                }}
-              />
+              <View style={styles.loadingOverlay}>
+                <View style={styles.loadingModalContainer}>
+                  <ActivityIndicator size="large" color="#7C3AED" />
+                  <Text style={styles.loadingModalText}>Loading details...</Text>
+                </View>
+              </View>
             )}
           </View>
         </TouchableWithoutFeedback>
-      </ThemedView>
+      </View>
     </SafeArea>
   );
 }
 
 const styles = StyleSheet.create({
-  safeHeader: { top: 5 },
-  headerLogoContainer: { flexDirection: "row", alignItems: "center", gap: 1 },
-  reactLogo: {
-    height: 50,
+  gradientHeader: {
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  headerBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  decorativeCircle: {
+    position: 'absolute',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 100,
+  },
+  circle1: {
+    width: 100,
+    height: 100,
+    top: -30,
+    right: -20,
+  },
+  circle2: {
+    width: 70,
+    height: 70,
+    top: 20,
+    left: -15,
+    opacity: 0.6,
+  },
+  header: {
+    paddingHorizontal: 20,
+    paddingTop: 15,
+    paddingBottom: 20,
+    position: 'relative',
+    zIndex: 1,
+  },
+  headerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  logoContainer: {
     width: 50,
-    resizeMode: "contain",
-    marginBottom: 10,
+    height: 50,
+    borderRadius: 25,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 15,
+  },
+  logo: {
+    width: 52,
+    height: 52,
+    resizeMode: 'contain',
+  },
+  headerTextContainer: {
+    flex: 1,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "white",
-    marginLeft: 2,
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#fff',
+    marginBottom: 2,
   },
-  headerBar: {
-    width: "100%",
-    height: 75,
-    backgroundColor: "#2E0740",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 5,
+  headerSubtitle: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.8)',
+    fontWeight: '400',
   },
-  headerLine: { height: 1, backgroundColor: "#c000ff", width: "100%" },
-  searchWrapper: {
+  container: {
     flex: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 13,
-    borderRadius: 8,
-    width: "80%",
-    marginLeft: 35,
-    top: 10,
+    backgroundColor: '#fff',
   },
-  searchInputWrapper: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#3A0A55",
-    borderRadius: 50,
-    borderWidth: 0.5,
-    borderColor: "#c000ff",
-    marginBottom: 10,
+  innerContainer: {
+    flex: 1,
+  },
+  keyboardView: {
+    flex: 1,
+  },
+  searchSection: {
+    backgroundColor: '#f8f9fa',
+    paddingHorizontal: 20,
+    paddingTop: 25,
+    paddingBottom: 15,
+    borderTopLeftRadius: 25,
+    borderTopRightRadius: 25,
+  },
+  searchContainer: {
+    marginBottom: 20,
+  },
+  searchInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    paddingHorizontal: 15,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  searchIcon: {
+    marginRight: 10,
   },
   searchInput: {
     flex: 1,
-    height: 40,
-    width: 210,
-    color: "white",
+    height: 50,
+    fontSize: 16,
+    color: '#2d3436',
+  },
+  clearButton: {
+    padding: 5,
+  },
+  categoryScrollContainer: {
+    paddingRight: 20,
+  },
+  categoryTab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    backgroundColor: '#fff',
+    borderRadius: 25,
+    marginRight: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  activeCategoryTab: {
+    backgroundColor: "#7C3AED",
+  },
+  categoryIcon: {
+    marginRight: 6,
+  },
+  categoryText: {
     fontSize: 14,
-    paddingVertical: 10,
+    fontWeight: '600',
+    color: "#7C3AED",
   },
-  tabContainer: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    marginHorizontal: 16,
-    backgroundColor: "#3A0A55",
-    borderRadius: 10,
-    padding: 6,
-    marginBottom: 12,
+  activeCategoryText: {
+    color: '#fff',
   },
-  tab: {
-    paddingVertical: 6,
-    paddingHorizontal: 14,
-    borderRadius: 8,
-    borderWidth: 0.4,
-    borderColor: "#c000ff",
-    backgroundColor: "transparent",
+  resultsSection: {
+    flex: 1,
+    backgroundColor: '#f8f9fa',
   },
-  activeTab: { backgroundColor: "#E6C4FF" },
-  tabText: { color: "#ccc", fontSize: 14 },
-  activeTabText: { color: "#2E0740", fontWeight: "600" },
-  cardList: { paddingHorizontal: 20 },
-  card: {
-    flexDirection: "row",
-    backgroundColor: "#3A0A55",
-    borderRadius: 10,
-    marginBottom: 16,
-    overflow: "hidden",
+  scrollView: {
+    flex: 1,
   },
-  cardImage: { width: 90, height: 90, resizeMode: "cover" },
-  cardContent: { flex: 1, padding: 10, justifyContent: "center" },
-  cardTitle: { color: "white", fontSize: 16, fontWeight: "bold" },
-  ratingContainer: { flexDirection: "row", marginVertical: 4 },
-  cardSubtitle: { color: "#ccc", fontSize: 12, marginBottom: 4 },
-  noResult: { textAlign: "center", marginTop: 20, color: "#ccc", fontSize: 16 },
+  scrollContent: {
+    paddingBottom: 100,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 60,
+  },
+  loadingText: {
+    marginTop: 15,
+    fontSize: 16,
+    color: '#764ba2',
+    fontWeight: '500',
+  },
+  resultsContainer: {
+    paddingHorizontal: 15,
+    paddingTop: 20,
+  },
+  resultsHeader: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#2d3436',
+    marginBottom: 20,
+  },
+  resultCard: {
+    flexDirection: 'row',
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    marginBottom: 15,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  cardImageContainer: {
+    position: 'relative',
+  },
+  cardImage: {
+    width: 130,
+    height: 130,
+  },
+  categoryBadge: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(102, 126, 234, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cardContent: {
+    flex: 1,
+    padding: 10,
+    justifyContent: 'space-between',
+  },
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#2d3436',
+    marginBottom: 8,
+  },
+  ratingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  starsContainer: {
+    flexDirection: 'row',
+    marginRight: 8,
+  },
+  ratingText: {
+    fontSize: 12,
+    color: '#636e72',
+    fontWeight: '500',
+  },
+  cardSubtitle: {
+    fontSize: 14,
+    color: '#636e72',
+    marginBottom: 8,
+  },
+  cardFooter: {
+    alignItems: 'flex-end',
+  },
+  emptyStateContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 40,
+    paddingTop: 80,
+  },
+  emptyStateTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#636e72',
+    marginTop: 20,
+    marginBottom: 8,
+  },
+  emptyStateText: {
+    fontSize: 16,
+    color: '#b2bec3',
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  initialStateContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 40,
+    paddingTop: 80,
+  },
+  initialStateTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: "#7C3AED",
+    marginTop: 20,
+    marginBottom: 8,
+  },
+  initialStateText: {
+    fontSize: 16,
+    color: '#636e72',
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingModalContainer: {
+    backgroundColor: '#fff',
+    padding: 30,
+    borderRadius: 16,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  loadingModalText: {
+    marginTop: 15,
+    fontSize: 16,
+    color: '#2d3436',
+    fontWeight: '500',
+  },
 });

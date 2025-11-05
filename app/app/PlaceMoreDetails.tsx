@@ -1,8 +1,20 @@
 import React from "react";
-import { View, Text, Image, StyleSheet, ScrollView, TouchableOpacity } from "react-native";
+import { 
+  View, 
+  Text, 
+  Image, 
+  StyleSheet, 
+  ScrollView, 
+  TouchableOpacity,
+  Dimensions,
+  StatusBar
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams, Stack } from "expo-router";
+import { LinearGradient } from 'expo-linear-gradient';
+
+const { width, height } = Dimensions.get('window');
 
 type FeesType = {
   amount?: number | string;
@@ -58,7 +70,7 @@ export default function PlaceMoreDetails() {
   const imageSource = image
     ? { uri: Array.isArray(image) ? image[0] : image }
     : isGuide
-    ? { uri: "https://cdn-icons-png.flaticon.com/512/149/149071.png" } // fallback guide image
+    ? { uri: "https://cdn-icons-png.flaticon.com/512/149/149071.png" }
     : undefined;
 
   // Parse languages nicely
@@ -76,95 +88,419 @@ export default function PlaceMoreDetails() {
     }
   }
 
+  const renderInfoCard = (icon: string, title: string, value: string, color = '#764ba2') => (
+    <View style={styles.infoCard}>
+      <View style={[styles.infoIconContainer, { backgroundColor: `${color}20` }]}>
+        <Ionicons name={icon as any} size={20} color={color} />
+      </View>
+      <View style={styles.infoTextContainer}>
+        <Text style={styles.infoLabel}>{title}</Text>
+        <Text style={styles.infoValue}>{value}</Text>
+      </View>
+    </View>
+  );
+
   return (
     <>
-      {/* Header with back button only */}
+      <StatusBar barStyle="light-content" backgroundColor="#7C3AED" />
+      
+      {/* Custom Header with Place Name */}
       <Stack.Screen
         options={{
-          headerTitle: "",
-          headerTransparent: true,
-          headerLeft: () => (
-            <TouchableOpacity
-              onPress={() => router.back()}
-              style={{ padding: 15, marginBottom: 10 }}
-            >
-              <Ionicons name="chevron-back" size={24} color="white" />
-            </TouchableOpacity>
-          ),
+          headerShown: true,
+          title: name ? (Array.isArray(name) ? name[0] : name) : "Place Details",
+          headerStyle: {
+            backgroundColor: '#7C3AED',
+          },
+          headerTintColor: '#fff',
+          headerTitleStyle: {
+            fontWeight: '600',
+            fontSize: 18,
+          },
+          headerBackTitle: '',
         }}
       />
 
-      <SafeAreaView style={{ flex: 1, backgroundColor: "#2E0740" }}>
-        <ScrollView contentContainerStyle={styles.container}>
-          {/* Image */}
+      <View style={styles.container}>
+              {/* Content */}
+        <ScrollView 
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Hero Image Section */}
           {imageSource && (
-            <Image
-              source={imageSource}
-              style={isGuide ? styles.guideImage : styles.image}
-            />
-          )}
-
-          {/* Title */}
-          {name && <Text style={isGuide ? styles.guideTitle : styles.title}>{name}</Text>}
-
-          {/* Rating */}
-          {rating && (
-            <View style={styles.ratingContainer}>
-              {Array.from({ length: Number(rating) || 0 }).map((_, i) => (
-                <Ionicons key={i} name="star" size={16} color="#FFD700" />
-              ))}
+            <View style={styles.imageSection}>
+              <Image
+                source={imageSource}
+                style={isGuide ? styles.guideImage : styles.image}
+                resizeMode="cover"
+              />
+              {isGuide && (
+                <View style={styles.guideBadge}>
+                  <LinearGradient colors={['#667eea', '#764ba2']} style={styles.guideBadgeGradient}>
+                    <Ionicons name="person" size={16} color="#fff" />
+                    <Text style={styles.guideBadgeText}>Guide</Text>
+                  </LinearGradient>
+                </View>
+              )}
             </View>
           )}
 
-          {/* Type / Role */}
-          {type && <Text style={isGuide ? styles.guideType : styles.type}>{type}</Text>}
+          {/* Main Content Card */}
+          <View style={styles.contentCard}>
+            {/* Title Section */}
+            <View style={styles.titleSection}>
+              {name && (
+                <Text style={styles.title} numberOfLines={2}>
+                  {name}
+                </Text>
+              )}
+              
+              {type && (
+                <View style={styles.typeContainer}>
+                  <View style={styles.typeBadge}>
+                    <Text style={styles.typeText}>{type}</Text>
+                  </View>
+                </View>
+              )}
 
-          {/* Description */}
-          {description && <Text style={isGuide ? styles.guideDescription : styles.description}>{description}</Text>}
-
-          {/* Timing */}
-          {timing && <Text style={styles.info}> Time -  {timing}</Text>}
-
-          {/* Fees */}
-          {parsedFees?.amount != null && (
-            <Text style={styles.info}> Amount - {parsedFees.amount}</Text>
-          )}
-
-          {/* Phone, Gender, Languages – Guide Only */}
-          {isGuide && (
-            <View style={styles.guideDetails}>
-              {phone && <Text style={styles.guideInfo}> {phone}</Text>}
-              {gender && <Text style={styles.guideInfo}> {gender}</Text>}
-              {parsedLanguages && <Text style={styles.guideInfo}> {parsedLanguages}</Text>}
+              {/* Rating */}
+              {rating && (
+                <View style={styles.ratingSection}>
+                  <View style={styles.starsContainer}>
+                    {Array.from({ length: Number(rating) || 0 }).map((_, i) => (
+                      <Ionicons key={i} name="star" size={18} color="#FFD700" />
+                    ))}
+                    {Array.from({ length: 5 - (Number(rating) || 0) }).map((_, i) => (
+                      <Ionicons key={i + (Number(rating) || 0)} name="star-outline" size={18} color="#ddd" />
+                    ))}
+                  </View>
+                  <Text style={styles.ratingText}>
+                    {rating} out of 5
+                  </Text>
+                </View>
+              )}
             </View>
-          )}
 
-          {/* Address fields */}
-          {parsedAddress.street && <Text style={styles.info}> Street: {parsedAddress.street}</Text>}
-          {parsedAddress.city && <Text style={styles.info}>City: {parsedAddress.city}</Text>}
-          {parsedAddress.state && <Text style={styles.info}> State: {parsedAddress.state}</Text>}
+            {/* Description */}
+            {description && (
+              <View style={styles.descriptionSection}>
+                <Text style={styles.sectionTitle}>About</Text>
+                <Text style={styles.description}>{description}</Text>
+              </View>
+            )}
+
+            {/* Information Cards */}
+            <View style={styles.infoSection}>
+              <Text style={styles.sectionTitle}>Information</Text>
+              
+              {/* Timing */}
+              {timing && renderInfoCard("time-outline", "Opening Hours", Array.isArray(timing) ? timing[0] : timing)}
+              
+              {/* Fees */}
+              {parsedFees?.amount != null && renderInfoCard(
+                "card-outline", 
+                "Entry Fee", 
+                `${parsedFees.currency || ""}${parsedFees.amount}`,
+                "#43e97b"
+              )}
+
+              {/* Guide-specific information */}
+              {isGuide && (
+                <View style={styles.guideInfoSection}>
+                  {phone && renderInfoCard("call-outline", "Contact", Array.isArray(phone) ? phone[0] : phone, "#4facfe")}
+                  {gender && renderInfoCard("person-outline", "Gender", Array.isArray(gender) ? gender[0] : gender, "#f093fb")}
+                  {parsedLanguages && renderInfoCard(
+                    "language-outline", 
+                    "Languages", 
+                    parsedLanguages,
+                    "#667eea"
+                  )}
+                </View>
+              )}
+
+              {/* Address Information */}
+              {(parsedAddress.street || parsedAddress.city || parsedAddress.state) && (
+                <View style={styles.addressSection}>
+                  <View style={styles.addressHeader}>
+                    <Ionicons name="location-outline" size={20} color="#667eea" />
+                    <Text style={styles.sectionTitle}>Address</Text>
+                  </View>
+                  <View style={styles.addressCard}>
+                    {parsedAddress.street && (
+                      <Text style={styles.addressText}>{parsedAddress.street}</Text>
+                    )}
+                    {parsedAddress.city && (
+                      <Text style={styles.addressText}>{parsedAddress.city}</Text>
+                    )}
+                    {parsedAddress.state && (
+                      <Text style={styles.addressText}>{parsedAddress.state}</Text>
+                    )}
+                  </View>
+                </View>
+              )}
+            </View>
+          </View>
         </ScrollView>
-      </SafeAreaView>
+      </View>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 16, paddingBottom: 100 },
-
-  // Default styles
-  image: { width: "100%", height: 200, borderRadius: 12, marginBottom: 16, marginTop: 50 },
-  title: { fontSize: 22, fontWeight: "bold", color: "white", marginBottom: 8, marginTop: 20, marginLeft: 10 },
-  type: { fontSize: 16, fontWeight: "600", color: "#E6C4FF", marginBottom: 8 },
-  description: { fontSize: 14, color: "#ccc", marginBottom: 12 },
-  info: { fontSize: 14, color: "#ccc", marginBottom: 6 },
-  ratingContainer: { flexDirection: "row", marginBottom: 8 },
-
-  // Guide-specific styles
-  guideImage: { width: "80%", height: 220, borderRadius: 12, marginBottom: 16, borderWidth: 1, borderColor: "#c000ff",marginTop: 50, alignSelf: "center" },
-  guideTitle: { fontSize: 24, fontWeight: "bold", color: "#f3f0e5ff", marginBottom: 8, marginTop: 20, marginLeft: 10 },
-  guideType: { fontSize: 16, fontWeight: "700", color: "#d1d0ceff", marginBottom: 8 },
-  guideDescription: { fontSize: 15, color: "#fff"},
-  guideDetails: {  borderRadius: 10, marginVertical: 8 },
-  guideInfo: { fontSize: 14, color: "#dddcd7ff", marginBottom: 4 },
+  container: {
+    flex: 1,
+    backgroundColor: '#f8f9fa',
+  },
+  header: {
+    paddingBottom: 0,
+    borderBottomLeftRadius: 10,
+    borderBottomRightRadius: 20,
+    shadowColor: '#000',
+  },
+  headerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 15,
+    paddingTop: 10,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  headerRight: {
+    flexDirection: 'row',
+  },
+  headerButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 10,
+   
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 30,
+  },
+  imageSection: {
+    position: 'relative',
+    marginHorizontal: 20,
+    marginTop: 5,
+    marginBottom: 20,
+  },
+  image: {
+    width: '100%',
+    height: 250,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  guideImage: {
+    width: '100%',
+    height: 280,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  guideBadge: {
+    position: 'absolute',
+    top: 2,
+    right: 15,
+    borderRadius: 20,
+    overflow: 'hidden',
+    
+  },
+  guideBadgeGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  guideBadgeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+    marginLeft: 4,
+  },
+  contentCard: {
+    backgroundColor: '#fff',
+    marginHorizontal: 20,
+    top: 30,
+    borderRadius: 20,
+    padding: 25,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  titleSection: {
+    marginBottom: 25,
+  },
+  title: {
+    fontSize: 26,
+    fontWeight: '700',
+    color: '#2d3436',
+    marginBottom: 12,
+    lineHeight: 32,
+  },
+  typeContainer: {
+    marginBottom: 15,
+  },
+  typeBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#667eea20',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  typeText: {
+    color: '#764ba2',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  ratingSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  starsContainer: {
+    flexDirection: 'row',
+    marginRight: 10,
+  },
+  ratingText: {
+    fontSize: 14,
+    color: '#636e72',
+    fontWeight: '500',
+  },
+  descriptionSection: {
+    marginBottom: 25,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#2d3436',
+    marginBottom: 15,
+  },
+  description: {
+    fontSize: 16,
+    color: '#636e72',
+    lineHeight: 24,
+  },
+  infoSection: {
+    marginBottom: 25,
+  },
+  infoCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8f9fa',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+  },
+  infoIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  infoTextContainer: {
+    flex: 1,
+  },
+  infoLabel: {
+    fontSize: 12,
+    color: '#636e72',
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  infoValue: {
+    fontSize: 16,
+    color: '#2d3436',
+    fontWeight: '600',
+  },
+  guideInfoSection: {
+    marginTop: 10,
+  },
+  addressSection: {
+    marginTop: 20,
+  },
+  addressHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  addressCard: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 16,
+    padding: 16,
+  },
+  addressText: {
+    fontSize: 16,
+    color: '#2d3436',
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  actionSection: {
+    marginTop: 10,
+  },
+  primaryButton: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginBottom: 15,
+  },
+  buttonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+  },
+  primaryButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  secondaryButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  secondaryButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f8f9fa',
+    paddingVertical: 14,
+    borderRadius: 12,
+    marginHorizontal: 5,
+  },
+  secondaryButtonText: {
+    color: '#764ba2',
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 6,
+  },
 });

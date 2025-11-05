@@ -5,7 +5,7 @@ import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { HapticTab } from '@/components/HapticTab';
 
 const { height } = Dimensions.get('window');
-const TAB_HEIGHT = Math.max(height * 0.08, 55); // min 60
+const TAB_HEIGHT = Math.max(height * 0.05, 60); // min 60
 
 export default function TabLayout() {
   return (
@@ -90,16 +90,16 @@ export default function TabLayout() {
 const styles = StyleSheet.create({
   floatingButton: {
     position: 'absolute',
-    bottom: 2, // fixed above tab
+    bottom: 1, // fixed above tab
     alignSelf: 'center',
-    width: 60,
-    height: 60,
+    width: 65,
+    height: 65,
     borderRadius: 35,
     backgroundColor: '#F9930B',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#F9930B',
-    shadowOffset: { width: 0, height: 5 },
+    shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.2,
     shadowRadius: 0.3,
     elevation: 10,

@@ -1,14 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  Image,
-  Alert,
-  ActivityIndicator,
-} from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image,Alert,ActivityIndicator,} from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -130,9 +121,9 @@ export default function Login() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top','bottom','left','right']}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom', 'left', 'right']}>
       <LinearGradient colors={['#3A0751', '#2E0740']} style={styles.container}>
-        
+
         {/* 🔵 Background Circles */}
         <View style={styles.circle1} />
         <View style={styles.circle2} />
@@ -228,7 +219,7 @@ const styles = StyleSheet.create({
 
   label: { color: '#fff', marginBottom: 5, fontWeight: '600' },
   input: { borderWidth: 1, borderColor: '#555', borderRadius: 5, padding: 10, color: '#fff', marginBottom: 15 },
-  
+
   passwordContainer: {
     flexDirection: 'row',
     alignItems: 'center',
