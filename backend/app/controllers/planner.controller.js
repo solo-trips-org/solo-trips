@@ -6,6 +6,143 @@ import * as rabbitmq from "../../config/rabbitmq.js";
 
 const shuffle = (arr) => arr.sort(() => Math.random() - 0.5);
 
+// Calculate distance between two points using Haversine formula
+const calculateDistance = (loc1, loc2) => {
+  const toRad = (value) => (value * Math.PI) / 180;
+  const R = 6371; // Earth radius in km
+  
+  const dLat = toRad(loc2.coordinates[1] - loc1.coordinates[1]);
+  const dLon = toRad(loc2.coordinates[0] - loc1.coordinates[0]);
+  
+  const a = 
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(loc1.coordinates[1])) * Math.cos(toRad(loc2.coordinates[1])) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+};
+
+// Prioritize places based on ratings and relevance
+const prioritizePlaces = (places) => {
+  return places.sort((a, b) => {
+    const aScore = (a.averageRating || 0) * 0.7 + (a.popularity || 0) * 0.3;
+    const bScore = (b.averageRating || 0) * 0.7 + (b.popularity || 0) * 0.3;
+    return bScore - aScore;
+  });
+};
+
+// Group places by proximity
+const groupNearbyPlaces = (places, maxDistance = 20) => {
+  const groups = [];
+  const visited = new Set();
+  
+  places.forEach((place, index) => {
+    if (visited.has(index)) return;
+    
+    const group = [place];
+    visited.add(index);
+    
+    places.forEach((otherPlace, otherIndex) => {
+      if (visited.has(otherIndex)) return;
+      
+      const distance = calculateDistance(place.location, otherPlace.location);
+      if (distance <= maxDistance) {
+        group.push(otherPlace);
+        visited.add(otherIndex);
+      }
+    });
+    
+    groups.push(group);
+  });
+  
+  return groups;
+};
+
+// Create a balanced daily itinerary
+const createDailyItinerary = (planData, daysOfTrip) => {
+  // Sort places by priority
+  const prioritizedData = prioritizePlaces([...planData]);
+  
+  // Group nearby places
+  const placeGroups = groupNearbyPlaces(prioritizedData.map(item => item.place));
+  
+  // Create daily plan
+  const dailyPlan = [];
+  const usedPlaces = new Set();
+  
+  for (let day = 1; day <= daysOfTrip; day++) {
+    const dayAgenda = {
+      morning: null,
+      afternoon: null,
+      evening: null
+    };
+    
+    // Select places for this day
+    const placesForDay = [];
+    let timeSlot = 'morning';
+    
+    // Try to fill all time slots
+    while (placesForDay.length < 3 && planData.length > usedPlaces.size) {
+      // Find next unused place
+      const nextPlaceIndex = planData.findIndex((item, index) => 
+        !usedPlaces.has(index) && 
+        !placesForDay.includes(item)
+      );
+      
+      if (nextPlaceIndex === -1) break;
+      
+      const placeItem = planData[nextPlaceIndex];
+      placesForDay.push(placeItem);
+      usedPlaces.add(nextPlaceIndex);
+      
+      // Assign to time slot
+      dayAgenda[timeSlot] = {
+        place: {
+          id: placeItem.place._id,
+          name: placeItem.place.name,
+          description: placeItem.place.description,
+          image: placeItem.place.image,
+          address: placeItem.place.address,
+          averageRating: placeItem.place.averageRating,
+          category: placeItem.place.category
+        },
+        hotel: placeItem.hotel ? {
+          id: placeItem.hotel._id,
+          name: placeItem.hotel.name,
+          description: placeItem.hotel.description,
+          image: placeItem.hotel.image,
+          address: placeItem.hotel.address,
+          averageRating: placeItem.hotel.averageRating,
+          priceRange: placeItem.hotel.priceRange
+        } : null,
+        events: placeItem.events.map(event => ({
+          id: event._id,
+          title: event.title,
+          description: event.description,
+          image: event.image,
+          address: event.address,
+          schedule: event.schedule,
+          averageRating: event.averageRating
+        }))
+      };
+      
+      // Move to next time slot
+      if (timeSlot === 'morning') timeSlot = 'afternoon';
+      else if (timeSlot === 'afternoon') timeSlot = 'evening';
+      else break;
+    }
+    
+    dailyPlan.push({
+      day,
+      date: null, // Will be set by frontend based on start date
+      agenda: dayAgenda
+    });
+  }
+  
+  return dailyPlan;
+};
+
 export const generateTripPlan = async (req, res) => {
   try {
     const { 
@@ -90,26 +227,8 @@ export const generateTripPlan = async (req, res) => {
       })
     );
 
-    // Shuffle planData to simulate "AI exploration"
-    const mixedPlan = shuffle(planData);
-
-    // Split into days more naturally
-    const dailyPlan = [];
-    let index = 0;
-    for (let i = 0; i < daysOfTrip; i++) {
-      const today = [];
-      const stops = Math.floor(Math.random() * 3) + 1; // 1–3 places per day
-      for (let j = 0; j < stops && index < mixedPlan.length; j++) {
-        today.push(mixedPlan[index]);
-        index++;
-      }
-      if (today.length > 0) {
-        dailyPlan.push({
-          day: i + 1,
-          agenda: shuffle(today) // random morning/afternoon order
-        });
-      }
-    }
+    // Create organized daily itinerary
+    const dailyPlan = createDailyItinerary(planData, daysOfTrip);
 
     // Persist generated plan to user's history (best-effort)
     try {
@@ -172,7 +291,7 @@ export const generateTripPlanAsync = async (req, res) => {
     // Create a unique request ID
     const requestId = `trip-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-    // Prepare message payload
+    // Prepare message payload with organized structure
     const messagePayload = {
       requestId,
       userId: req.user?.id,

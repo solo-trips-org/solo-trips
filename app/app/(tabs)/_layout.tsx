@@ -1,10 +1,11 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
-import { View, Animated, Platform, Dimensions } from 'react-native';
+import { View, StyleSheet, Platform, Dimensions } from 'react-native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { HapticTab } from '@/components/HapticTab';
 
-const { width } = Dimensions.get('window');
+const { height } = Dimensions.get('window');
+const TAB_HEIGHT = Math.max(height * 0.05, 60); // min 60
 
 export default function TabLayout() {
   return (
@@ -12,27 +13,23 @@ export default function TabLayout() {
       screenOptions={{
         headerShown: false,
         tabBarButton: HapticTab,
-        tabBarHideOnKeyboard: true,
+        tabBarHideOnKeyboard: false, // don’t move with keyboard
         tabBarStyle: {
-          position: 'absolute',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          height: 78,
-          borderRadius: 0,
+          height: TAB_HEIGHT,
           backgroundColor: '#fff',
-          paddingBottom: Platform.OS === 'ios' ? 20 : 10,
+          borderTopWidth: 0,
           shadowColor: '#000',
-          shadowOffset: { width: 0, height: 5 },
-          shadowOpacity: 0.1,
-          shadowRadius: 0,
-          elevation: 5,
+          shadowOffset: { width: 0, height: -3 },
+          shadowOpacity: 0.05,
+          shadowRadius: 4,
+          elevation: 8,
+          position: 'absolute',
         },
         tabBarActiveTintColor: '#F9930B',
         tabBarInactiveTintColor: '#A0A0A0',
         tabBarLabelStyle: {
           fontSize: 12,
-          marginBottom: 0,
+          marginBottom: Platform.OS === 'ios' ? 0 : 4,
         },
       }}
     >
@@ -54,30 +51,15 @@ export default function TabLayout() {
         }}
       />
 
-      {/* Planner / Center Floating Button */}
+      {/* Floating Planner */}
       <Tabs.Screen
         name="planner"
         options={{
           tabBarLabel: '',
           tabBarIcon: () => (
-            <Animated.View
-              style={{
-                width: 70,
-                height: 70,
-                borderRadius: 35,
-                backgroundColor: '#F9930B',
-                justifyContent: 'center',
-                alignItems: 'center',
-                top: -30,
-                shadowColor: '#F9930B',
-                shadowOffset: { width: 0, height: 5 },
-                shadowOpacity: 0.4,
-                shadowRadius: 25,
-                elevation: 8,
-              }}
-            >
-              <MaterialIcons name="event-note" size={30} color="white" />
-            </Animated.View>
+            <View style={styles.floatingButton}>
+              <MaterialIcons name="event-note" size={32} color="#fff" />
+            </View>
           ),
         }}
       />
@@ -96,9 +78,30 @@ export default function TabLayout() {
         name="profile"
         options={{
           title: 'Profile',
-          tabBarIcon: ({ color }) => <Ionicons name="person-circle-outline" size={24} color={color} />,
+          tabBarIcon: ({ color }) => (
+            <Ionicons name="person-circle-outline" size={26} color={color} />
+          ),
         }}
       />
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  floatingButton: {
+    position: 'absolute',
+    bottom: 1, // fixed above tab
+    alignSelf: 'center',
+    width: 65,
+    height: 65,
+    borderRadius: 35,
+    backgroundColor: '#F9930B',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#F9930B',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 0.3,
+    elevation: 10,
+  },
+});
