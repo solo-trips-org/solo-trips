@@ -26,7 +26,7 @@ const API_BASE_URL = "https://trips-api.tselven.com/api";
 // ---------------------------
 // Types
 // ---------------------------
-interface PlaceOption {
+interface Place {
   _id: string;
   name: string;
 }
@@ -34,6 +34,7 @@ interface PlaceOption {
 interface Event {
   _id: string;
   name: string;
+  title?: string;
   description?: string;
   image?: string;
   date?: string;
@@ -45,17 +46,47 @@ interface Hotel {
   description?: string;
   image?: string;
   price?: number;
+  priceRange?: string;
 }
 
-interface DayItem {
-  place: { name: string; description: string; image?: string };
-  events?: Event[];
-  hotels?: Hotel[];
+interface TimeSlot {
+  place: {
+    id: string;
+    name: string;
+    description: string;
+    image?: string;
+    address?: any;
+    averageRating?: number;
+    category?: string;
+  };
+  hotel: {
+    id: string;
+    name: string;
+    description: string;
+    image?: string;
+    address?: any;
+    averageRating?: number;
+    priceRange?: string;
+  } | null;
+  events: Array<{
+    id: string;
+    title: string;
+    description: string;
+    image?: string;
+    address?: any;
+    schedule?: any;
+    averageRating?: number;
+  }>;
 }
 
 interface DayAgenda {
   day: number;
-  agenda: DayItem[];
+  date: string | null;
+  agenda: {
+    morning: TimeSlot | null;
+    afternoon: TimeSlot | null;
+    evening: TimeSlot | null;
+  };
 }
 
 interface TripData {
@@ -73,7 +104,7 @@ export default function PlannerScreen() {
   const [startPlaceId, setStartPlaceId] = useState("");
   const [endPlaceId, setEndPlaceId] = useState("");
   const [members, setMembers] = useState("1");
-  const [places, setPlaces] = useState<PlaceOption[]>([]);
+  const [places, setPlaces] = useState<Place[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
   const [hotels, setHotels] = useState<Hotel[]>([]);
   const [placesLoading, setPlacesLoading] = useState(false);
@@ -239,7 +270,7 @@ export default function PlannerScreen() {
     console.log("Calculated Days:", numDays);
     console.log("Start Place:", startPlaceId, getPlaceName(startPlaceId));
     console.log("End Place:", endPlaceId, getPlaceName(endPlaceId));
-    
+  
     if (numDays < 1) {
       Alert.alert("Validation", "Trip must be at least 1 day.");
       return;
@@ -255,6 +286,7 @@ export default function PlannerScreen() {
       fromPlace: startPlaceId,
       toPlace: endPlaceId,
       personCount,
+      daysOfTrip: numDays,
       startTimestamp: startDate.toISOString(),
       endTimestamp: endDate.toISOString(),
     };
@@ -269,11 +301,9 @@ export default function PlannerScreen() {
 
       if (!res.ok) throw new Error("Failed to generate trip plan");
       const data: TripData = await res.json();
-      
+    
       console.log("API Response:", JSON.stringify(data, null, 2));
-      console.log("Events available:", events.length);
-      console.log("Hotels available:", hotels.length);
-      
+    
       if (!data.success) throw new Error("Trip generation failed");
 
       // Check if API returned correct number of days
@@ -284,39 +314,20 @@ export default function PlannerScreen() {
       console.log("Days returned from API:", data.days.length);
       console.log("Expected days:", numDays);
 
-      // Enhance trip data with events and hotels for each day
-      const enhancedDays = data.days.map((day, idx) => {
-        const dayEvents = events.slice(idx * 2, Math.min((idx * 2) + 2, events.length));
-        const dayHotels = hotels.slice(idx, Math.min(idx + 1, hotels.length));
-        
-        console.log(`Day ${idx + 1}: Adding ${dayEvents.length} events and ${dayHotels.length} hotels`);
-        
-        return {
-          ...day,
-          day: day.day || idx + 1,
-          agenda: day.agenda.map((item) => ({
-            ...item,
-            events: dayEvents,
-            hotels: dayHotels,
-          })),
-        };
-      });
-
       const tripWithNames = {
         ...data,
-        days: enhancedDays,
         fromPlace: getPlaceName(startPlaceId),
         toPlace: getPlaceName(endPlaceId),
       };
 
-      console.log("Enhanced Trip Data:", JSON.stringify(tripWithNames, null, 2));
-      
+      console.log("Trip Data:", JSON.stringify(tripWithNames, null, 2));
+    
       setTripResults(tripWithNames);
 
       // Save to history
       await saveHistory(tripWithNames);
       
-      Alert.alert("Success", `${enhancedDays.length}-day trip plan generated successfully!`);
+      Alert.alert("Success", `${data.days.length}-day trip plan generated successfully!`);
     } catch (err) {
       console.error("Error generating plan:", err);
       Alert.alert("Error", err instanceof Error ? err.message : "Failed to generate plan");
@@ -482,66 +493,169 @@ export default function PlannerScreen() {
                 <View key={idx} style={styles.dayCard}>
                   <Text style={styles.dayTitle}>Day {day.day || idx + 1}</Text>
                   
-                  {/* Places */}
-                  {day.agenda && day.agenda.length > 0 ? (
-                    day.agenda.map((item, i) => (
-                      <View key={i}>
-                        <View style={styles.placeCard}>
-                          {item.place.image && <Image source={{ uri: item.place.image }} style={styles.placeImage} />}
-                          <View style={styles.placeInfo}>
-                            <Text style={styles.placeName}>{item.place.name}</Text>
-                            <Text style={styles.placeDesc}>{item.place.description}</Text>
+                  {/* Morning */}
+                  {day.agenda.morning && (
+                    <View style={styles.timeSlot}>
+                      <Text style={styles.timeSlotTitle}>Morning</Text>
+                      <View style={styles.placeCard}>
+                        {day.agenda.morning.place.image && <Image source={{ uri: day.agenda.morning.place.image }} style={styles.placeImage} />}
+                        <View style={styles.placeInfo}>
+                          <Text style={styles.placeName}>{day.agenda.morning.place.name}</Text>
+                          <Text style={styles.placeDesc}>{day.agenda.morning.place.description}</Text>
+                        </View>
+                      </View>
+
+                      {/* Events for morning */}
+                      {day.agenda.morning.events && day.agenda.morning.events.length > 0 && (
+                        <View style={styles.subsection}>
+                          <Text style={styles.subsectionTitle}>
+                            <FontAwesome5 name="calendar-check" size={12} color="#a78bfa" /> Events
+                          </Text>
+                          {day.agenda.morning.events.map((event, ei) => (
+                            <View key={ei} style={styles.subItem}>
+                              {event.image && <Image source={{ uri: event.image }} style={styles.subImage} />}
+                              <View style={{ flex: 1 }}>
+                                <Text style={styles.subName}>{event.title}</Text>
+                                {event.description && <Text style={styles.subDesc}>{event.description}</Text>}
+                              </View>
+                            </View>
+                          ))}
+                        </View>
+                      )}
+
+                      {/* Hotel for morning */}
+                      {day.agenda.morning.hotel && (
+                        <View style={styles.subsection}>
+                          <Text style={styles.subsectionTitle}>
+                            <FontAwesome5 name="hotel" size={12} color="#a78bfa" /> Accommodation
+                          </Text>
+                          <View style={styles.subItem}>
+                            {day.agenda.morning.hotel.image && (
+                              <Image 
+                                source={{ uri: day.agenda.morning.hotel.image }} 
+                                style={styles.subImage}
+                                onError={(e) => console.log("Hotel image load error:", e.nativeEvent.error)}
+                              />
+                            )}
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.subName}>{day.agenda.morning.hotel.name}</Text>
+                              {day.agenda.morning.hotel.description && <Text style={styles.subDesc}>{day.agenda.morning.hotel.description}</Text>}
+                              {day.agenda.morning.hotel.priceRange && <Text style={styles.priceText}>{day.agenda.morning.hotel.priceRange}</Text>}
+                            </View>
                           </View>
                         </View>
+                      )}
+                    </View>
+                  )}
 
-                        {/* Events for this day */}
-                        {item.events && item.events.length > 0 && (
-                          <View style={styles.subsection}>
-                            <Text style={styles.subsectionTitle}>
-                              <FontAwesome5 name="calendar-check" size={12} color="#a78bfa" /> Events
-                            </Text>
-                            {item.events.map((event, ei) => (
-                              <View key={ei} style={styles.subItem}>
-                                {event.image && <Image source={{ uri: event.image }} style={styles.subImage} />}
-                                <View style={{ flex: 1 }}>
-                                  <Text style={styles.subName}>{event.name}</Text>
-                                  {event.description && <Text style={styles.subDesc}>{event.description}</Text>}
-                                </View>
-                              </View>
-                            ))}
-                          </View>
-                        )}
-
-                        {/* Hotels for this day */}
-                        {item.hotels && item.hotels.length > 0 && (
-                          <View style={styles.subsection}>
-                            <Text style={styles.subsectionTitle}>
-                              <FontAwesome5 name="hotel" size={12} color="#a78bfa" /> Accommodation
-                            </Text>
-                            {item.hotels.map((hotel, hi) => (
-                              <View key={hi} style={styles.subItem}>
-                                {hotel.image && (
-                                  <Image 
-                                    source={{ uri: hotel.image }} 
-                                    style={styles.subImage}
-                                    onError={(e) => console.log("Hotel image load error:", e.nativeEvent.error)}
-                                  />
-                                )}
-                                <View style={{ flex: 1 }}>
-                                  <Text style={styles.subName}>{hotel.name || "Hotel"}</Text>
-                                  {hotel.description && <Text style={styles.subDesc}>{hotel.description}</Text>}
-                                  {hotel.price && hotel.price > 0 && (
-                                    <Text style={styles.priceText}>₹{hotel.price}/night</Text>
-                                  )}
-                                </View>
-                              </View>
-                            ))}
-                          </View>
-                        )}
+                  {/* Afternoon */}
+                  {day.agenda.afternoon && (
+                    <View style={styles.timeSlot}>
+                      <Text style={styles.timeSlotTitle}>Afternoon</Text>
+                      <View style={styles.placeCard}>
+                        {day.agenda.afternoon.place.image && <Image source={{ uri: day.agenda.afternoon.place.image }} style={styles.placeImage} />}
+                        <View style={styles.placeInfo}>
+                          <Text style={styles.placeName}>{day.agenda.afternoon.place.name}</Text>
+                          <Text style={styles.placeDesc}>{day.agenda.afternoon.place.description}</Text>
+                        </View>
                       </View>
-                    ))
-                  ) : (
-                    <Text style={styles.placeDesc}>No places planned for this day</Text>
+
+                      {/* Events for afternoon */}
+                      {day.agenda.afternoon.events && day.agenda.afternoon.events.length > 0 && (
+                        <View style={styles.subsection}>
+                          <Text style={styles.subsectionTitle}>
+                            <FontAwesome5 name="calendar-check" size={12} color="#a78bfa" /> Events
+                          </Text>
+                          {day.agenda.afternoon.events.map((event, ei) => (
+                            <View key={ei} style={styles.subItem}>
+                              {event.image && <Image source={{ uri: event.image }} style={styles.subImage} />}
+                              <View style={{ flex: 1 }}>
+                                <Text style={styles.subName}>{event.title}</Text>
+                                {event.description && <Text style={styles.subDesc}>{event.description}</Text>}
+                              </View>
+                            </View>
+                          ))}
+                        </View>
+                      )}
+
+                      {/* Hotel for afternoon */}
+                      {day.agenda.afternoon.hotel && (
+                        <View style={styles.subsection}>
+                          <Text style={styles.subsectionTitle}>
+                            <FontAwesome5 name="hotel" size={12} color="#a78bfa" /> Accommodation
+                          </Text>
+                          <View style={styles.subItem}>
+                            {day.agenda.afternoon.hotel.image && (
+                              <Image 
+                                source={{ uri: day.agenda.afternoon.hotel.image }} 
+                                style={styles.subImage}
+                                onError={(e) => console.log("Hotel image load error:", e.nativeEvent.error)}
+                              />
+                            )}
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.subName}>{day.agenda.afternoon.hotel.name}</Text>
+                              {day.agenda.afternoon.hotel.description && <Text style={styles.subDesc}>{day.agenda.afternoon.hotel.description}</Text>}
+                              {day.agenda.afternoon.hotel.priceRange && <Text style={styles.priceText}>{day.agenda.afternoon.hotel.priceRange}</Text>}
+                            </View>
+                          </View>
+                        </View>
+                      )}
+                    </View>
+                  )}
+
+                  {/* Evening */}
+                  {day.agenda.evening && (
+                    <View style={styles.timeSlot}>
+                      <Text style={styles.timeSlotTitle}>Evening</Text>
+                      <View style={styles.placeCard}>
+                        {day.agenda.evening.place.image && <Image source={{ uri: day.agenda.evening.place.image }} style={styles.placeImage} />}
+                        <View style={styles.placeInfo}>
+                          <Text style={styles.placeName}>{day.agenda.evening.place.name}</Text>
+                          <Text style={styles.placeDesc}>{day.agenda.evening.place.description}</Text>
+                        </View>
+                      </View>
+
+                      {/* Events for evening */}
+                      {day.agenda.evening.events && day.agenda.evening.events.length > 0 && (
+                        <View style={styles.subsection}>
+                          <Text style={styles.subsectionTitle}>
+                            <FontAwesome5 name="calendar-check" size={12} color="#a78bfa" /> Events
+                          </Text>
+                          {day.agenda.evening.events.map((event, ei) => (
+                            <View key={ei} style={styles.subItem}>
+                              {event.image && <Image source={{ uri: event.image }} style={styles.subImage} />}
+                              <View style={{ flex: 1 }}>
+                                <Text style={styles.subName}>{event.title}</Text>
+                                {event.description && <Text style={styles.subDesc}>{event.description}</Text>}
+                              </View>
+                            </View>
+                          ))}
+                        </View>
+                      )}
+
+                      {/* Hotel for evening */}
+                      {day.agenda.evening.hotel && (
+                        <View style={styles.subsection}>
+                          <Text style={styles.subsectionTitle}>
+                            <FontAwesome5 name="hotel" size={12} color="#a78bfa" /> Accommodation
+                          </Text>
+                          <View style={styles.subItem}>
+                            {day.agenda.evening.hotel.image && (
+                              <Image 
+                                source={{ uri: day.agenda.evening.hotel.image }} 
+                                style={styles.subImage}
+                                onError={(e) => console.log("Hotel image load error:", e.nativeEvent.error)}
+                              />
+                            )}
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.subName}>{day.agenda.evening.hotel.name}</Text>
+                              {day.agenda.evening.hotel.description && <Text style={styles.subDesc}>{day.agenda.evening.hotel.description}</Text>}
+                              {day.agenda.evening.hotel.priceRange && <Text style={styles.priceText}>{day.agenda.evening.hotel.priceRange}</Text>}
+                            </View>
+                          </View>
+                        </View>
+                      )}
+                    </View>
                   )}
                 </View>
               ))}
@@ -631,4 +745,23 @@ const styles = StyleSheet.create({
   subName: { color: "#fff", fontWeight: "600", fontSize: 13 },
   subDesc: { color: "#d1d5db", fontSize: 11, marginTop: 2 },
   priceText: { color: "#a78bfa", fontSize: 12, fontWeight: "700", marginTop: 4 },
+
+  timeSlot: { 
+    backgroundColor: "rgba(167,139,250,0.1)", 
+    borderRadius: 10, 
+    padding: 12, 
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "rgba(167,139,250,0.3)"
+  },
+  timeSlotTitle: { 
+    color: "#a78bfa", 
+    fontSize: 16, 
+    fontWeight: "700", 
+    marginBottom: 8,
+    textAlign: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(167,139,250,0.3)",
+    paddingBottom: 4
+  },
 });
