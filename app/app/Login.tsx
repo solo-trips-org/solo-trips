@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image,Alert,ActivityIndicator,} from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -8,16 +8,17 @@ import * as MediaLibrary from 'expo-media-library';
 import { Camera } from 'expo-camera';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios, { AxiosError } from 'axios';
-import { Ionicons } from '@expo/vector-icons'; // 👈 For show/hide password icon
+import { Ionicons } from '@expo/vector-icons'; // 👁️ for password toggle
 
 export default function Login() {
   const router = useRouter();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false); // 👈 toggle password visibility
+  const [checkingToken, setCheckingToken] = useState(true); // 👈 check token on startup
+  const [showPassword, setShowPassword] = useState(false);
 
-  // ✅ Permission request function
+  // ✅ Permission request
   const requestAllPermissions = async (): Promise<boolean> => {
     try {
       const { status: cameraStatus } = await Camera.requestCameraPermissionsAsync();
@@ -46,19 +47,26 @@ export default function Login() {
     }
   };
 
-  // ✅ Auto login if token exists
+  // ✅ Auto skip login if token exists
   useEffect(() => {
     const checkToken = async () => {
-      const savedToken = await AsyncStorage.getItem("authToken");
-      if (savedToken) {
-        console.log("Found saved token:", savedToken);
-        router.replace('/'); // skip login page
+      try {
+        const savedToken = await AsyncStorage.getItem('authToken');
+        if (savedToken) {
+          console.log('Found saved token:', savedToken);
+          router.replace('/'); // go home directly
+        } else {
+          setCheckingToken(false); // no token → show login page
+        }
+      } catch (e) {
+        console.error('Token check error:', e);
+        setCheckingToken(false);
       }
     };
     checkToken();
   }, []);
 
-  // ✅ Login function
+  // ✅ Login handler
   const handleLogin = async () => {
     if (!username || !password) {
       Alert.alert('Validation', 'Please enter username and password.');
@@ -68,44 +76,54 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const response = await axios.post("https://trips-api.tselven.com/api/login", {
+      const response = await axios.post('https://trips-api.tselven.com/api/login', {
         username: username,
-        password: password, // 👈 backend expects lowercase key
+        password: password,
+        role: 'user'
       });
 
       const { token, user } = response.data;
 
       // 🔑 Save token
-      await AsyncStorage.setItem("authToken", token);
+      await AsyncStorage.setItem('authToken', token);
 
-      console.log("JWT Token:", token);
-      console.log("User Info:", user);
+      console.log('JWT Token:', token);
+      console.log('User Info:', user);
 
-      Alert.alert("Success", `Welcome ${user.username}`);
-
-      setLoading(false);
+      Alert.alert('Success', `Welcome ${user.username}`);
 
       const granted = await requestAllPermissions();
       if (granted) {
-        router.replace('/'); // go to home
+        router.replace('/'); // go home
       }
     } catch (err) {
       const error = err as AxiosError<any>;
       console.error(error.response?.data || error.message);
 
       Alert.alert(
-        "Login Failed",
-        error.response?.data?.message || "Invalid username or password"
+        'Login Failed',
+        error.response?.data?.message || 'Invalid username or password'
       );
-
+    } finally {
       setLoading(false);
     }
   };
 
+  // ⏳ Show loading while checking token
+  if (checkingToken) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <LinearGradient colors={['#3A0751', '#2E0740']} style={styles.container}>
+          <ActivityIndicator size="large" color="#c000ff" />
+        </LinearGradient>
+      </SafeAreaView>
+    );
+  }
+
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top','bottom','left','right']}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom', 'left', 'right']}>
       <LinearGradient colors={['#3A0751', '#2E0740']} style={styles.container}>
-        
+
         {/* 🔵 Background Circles */}
         <View style={styles.circle1} />
         <View style={styles.circle2} />
@@ -124,7 +142,7 @@ export default function Login() {
         <View style={styles.passwordContainer}>
           <TextInput
             style={styles.inputPassword}
-            secureTextEntry={!showPassword} // 👈 toggle secureTextEntry
+            secureTextEntry={!showPassword}
             placeholder="••••••••"
             placeholderTextColor="#999"
             value={password}
@@ -201,8 +219,7 @@ const styles = StyleSheet.create({
 
   label: { color: '#fff', marginBottom: 5, fontWeight: '600' },
   input: { borderWidth: 1, borderColor: '#555', borderRadius: 5, padding: 10, color: '#fff', marginBottom: 15 },
-  
-  // ✅ Password container styles
+
   passwordContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -212,11 +229,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     marginBottom: 15,
   },
-  inputPassword: {
-    flex: 1,
-    paddingVertical: 10,
-    color: '#fff',
-  },
+  inputPassword: { flex: 1, paddingVertical: 10, color: '#fff' },
 
   button: { backgroundColor: '#c000ff', padding: 15, borderRadius: 5, alignItems: 'center', marginTop: 10 },
   buttonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
