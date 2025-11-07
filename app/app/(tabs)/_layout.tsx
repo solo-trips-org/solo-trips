@@ -3,19 +3,22 @@ import React from 'react';
 import { View, StyleSheet, Platform, Dimensions } from 'react-native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { HapticTab } from '@/components/HapticTab';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { height } = Dimensions.get('window');
 const TAB_HEIGHT = Math.max(height * 0.05, 60); // min 60
 
 export default function TabLayout() {
+  const insets = useSafeAreaInsets();
+  
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
         tabBarButton: HapticTab,
-        tabBarHideOnKeyboard: false, // don’t move with keyboard
+        tabBarHideOnKeyboard: true, // Hide tab bar when keyboard is visible
         tabBarStyle: {
-          height: TAB_HEIGHT,
+          height: TAB_HEIGHT + insets.bottom,
           backgroundColor: '#fff',
           borderTopWidth: 0,
           shadowColor: '#000',
@@ -24,6 +27,9 @@ export default function TabLayout() {
           shadowRadius: 4,
           elevation: 8,
           position: 'absolute',
+          bottom: 0,
+          paddingBottom: insets.bottom,
+          paddingHorizontal: Platform.OS === 'ios' ? 0 : 0,
         },
         tabBarActiveTintColor: '#F9930B',
         tabBarInactiveTintColor: '#A0A0A0',
@@ -90,7 +96,6 @@ export default function TabLayout() {
 const styles = StyleSheet.create({
   floatingButton: {
     position: 'absolute',
-    bottom: 1, // fixed above tab
     alignSelf: 'center',
     width: 65,
     height: 65,
@@ -103,5 +108,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 0.3,
     elevation: 10,
+    bottom: -25, // Position it centered on the tab bar
   },
 });

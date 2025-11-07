@@ -24,11 +24,13 @@ import { useRouter, useFocusEffect } from "expo-router";
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width, height } = Dimensions.get('window');
 const categories = ["Places", "Hotels", "Event", "Guide"];
 
 export default function SearchScreen() {
+  const insets = useSafeAreaInsets();
   const [query, setQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("Places");
   const [results, setResults] = useState<any[]>([]);
@@ -326,7 +328,7 @@ export default function SearchScreen() {
               <View style={styles.resultsSection}>
                 <ScrollView
                   style={styles.scrollView}
-                  contentContainerStyle={styles.scrollContent}
+                  contentContainerStyle={[styles.scrollContent, { paddingBottom: 100 + insets.bottom }]}
                   keyboardShouldPersistTaps="handled"
                   showsVerticalScrollIndicator={false}
                 >
@@ -340,64 +342,68 @@ export default function SearchScreen() {
                       <Text style={styles.resultsHeader}>
                         Found {results.length} {selectedCategory.toLowerCase()}
                       </Text>
-                      {results.map((item: any, index: number) => {
-                        const rating = parseInt(item.averageRating || "0", 10);
+                      
+                      {/* List View */}
+                      <>
+                        {results.map((item: any, index: number) => {
+                          const rating = parseInt(item.averageRating || "0", 10);
 
-                        return (
-                          <TouchableOpacity
-                            key={`${item._id}-${index}`}
-                            style={styles.resultCard}
-                            onPress={() => handleNavigate(item)}
-                            activeOpacity={0.9}
-                          >
-                            <View style={styles.cardImageContainer}>
-                              <Image
-                                source={{ uri: item.image }}
-                                style={styles.cardImage}
-                                resizeMode="cover"
-                              />
-                              <View style={styles.categoryBadge}>
-                                <Ionicons
-                                  name={getCategoryIcon(selectedCategory) as any}
-                                  size={12}
-                                  color="#fff"
+                          return (
+                            <TouchableOpacity
+                              key={`${item._id}-${index}`}
+                              style={styles.resultCard}
+                              onPress={() => handleNavigate(item)}
+                              activeOpacity={0.9}
+                            >
+                              <View style={styles.cardImageContainer}>
+                                <Image
+                                  source={{ uri: item.image }}
+                                  style={styles.cardImage}
+                                  resizeMode="cover"
                                 />
-                              </View>
-                            </View>
-
-                            <View style={styles.cardContent}>
-                              <Text style={styles.cardTitle} numberOfLines={2}>
-                                {item.name || item.title}
-                              </Text>
-
-                              {/* Rating Stars */}
-                              <View style={styles.ratingContainer}>
-                                <View style={styles.starsContainer}>
-                                  {Array.from({ length: 5 }).map((_, i) => (
-                                    <Ionicons
-                                      key={i}
-                                      name={i < rating ? "star" : "star-outline"}
-                                      size={14}
-                                      color="#FFD700"
-                                    />
-                                  ))}
+                                <View style={styles.categoryBadge}>
+                                  <Ionicons
+                                    name={getCategoryIcon(selectedCategory) as any}
+                                    size={12}
+                                    color="#fff"
+                                  />
                                 </View>
-                                <Text style={styles.ratingText}>
-                                  {rating > 0 ? `${rating}.0` : "No rating"}
+                              </View>
+
+                              <View style={styles.cardContent}>
+                                <Text style={styles.cardTitle} numberOfLines={2}>
+                                  {item.name || item.title}
                                 </Text>
-                              </View>
 
-                              <Text style={styles.cardSubtitle} numberOfLines={1}>
-                                {item.phone || item.category || item.type || ""}
-                              </Text>
+                                {/* Rating Stars */}
+                                <View style={styles.ratingContainer}>
+                                  <View style={styles.starsContainer}>
+                                    {Array.from({ length: 5 }).map((_, i) => (
+                                      <Ionicons
+                                        key={i}
+                                        name={i < rating ? "star" : "star-outline"}
+                                        size={14}
+                                        color="#FFD700"
+                                      />
+                                    ))}
+                                  </View>
+                                  <Text style={styles.ratingText}>
+                                    {rating > 0 ? `${rating}.0` : "No rating"}
+                                  </Text>
+                                </View>
 
-                              <View style={styles.cardFooter}>
-                                <Ionicons name="chevron-forward" size={16} color="#7C3AED" />
+                                <Text style={styles.cardSubtitle} numberOfLines={1}>
+                                  {item.phone || item.category || item.type || ""}
+                                </Text>
+
+                                <View style={styles.cardFooter}>
+                                  <Ionicons name="chevron-forward" size={16} color="#7C3AED" />
+                                </View>
                               </View>
-                            </View>
-                          </TouchableOpacity>
-                        );
-                      })}
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </>
                     </View>
                   ) : query ? (
                     <View style={styles.emptyStateContainer}>

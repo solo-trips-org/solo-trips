@@ -7,9 +7,9 @@ type Props = {
   backgroundColor?: string;
 };
 
-export default function SafeArea({ children, backgroundColor = '#2E0740"' }: Props) {
+export default function SafeArea({ children, backgroundColor = '#2E0740' }: Props) {
   return (
-    <SafeAreaView edges={['top']} style={[styles.containerSafe, { backgroundColor }]}>
+    <SafeAreaView style={[styles.containerSafe, { backgroundColor }]}>
       {children}
     </SafeAreaView>
   ); 
@@ -17,14 +17,8 @@ export default function SafeArea({ children, backgroundColor = '#2E0740"' }: Pro
 
 const styles = StyleSheet.create({
   containerSafe: {
-    width: '100%',
-    height:'auto',
-    // backgroundColor: '#fff',
-   // marginTop   : 2,
-    marginBottom: 0,
-    // color: '#999a9533',
-    paddingBottom:0,
-    paddingHorizontal: 0,  
     flex: 1,
+    // Apply safe area insets to all edges to prevent overlap with device UI
+    // This will ensure content doesn't go under notches, status bars, or navigation buttons
   },
 });
