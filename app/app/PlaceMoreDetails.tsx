@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { 
   View, 
   Text, 
@@ -7,12 +7,16 @@ import {
   ScrollView, 
   TouchableOpacity,
   Dimensions,
-  StatusBar
+  StatusBar,
+  ActivityIndicator,
+  Alert
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams, Stack } from "expo-router";
 import { LinearGradient } from 'expo-linear-gradient';
+import MapComponent from "@/components/MapComponent";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const { width, height } = Dimensions.get('window');
 
@@ -46,6 +50,9 @@ export default function PlaceMoreDetails() {
     gender,
     languages,
   } = useLocalSearchParams();
+
+  const [placeDetails, setPlaceDetails] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
   // Safely parse fees
   let parsedFees: FeesType = {};
@@ -100,6 +107,99 @@ export default function PlaceMoreDetails() {
     </View>
   );
 
+  // Fetch full place details including location data
+  useEffect(() => {
+    const fetchPlaceDetails = async () => {
+      if (!id) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const token = await AsyncStorage.getItem("authToken");
+        if (!token) {
+          Alert.alert("Error", "No auth token found. Please login again.");
+          router.push("/Login");
+          return;
+        }
+
+        const response = await fetch(
+          `https://trips-api.tselven.com/api/places/${id}`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch place details");
+        }
+
+        const data = await response.json();
+        setPlaceDetails(data);
+      } catch (error) {
+        console.error("Error fetching place details:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPlaceDetails();
+  }, [id]);
+
+  // Extract latitude and longitude from place details
+  const getCoordinatesFromPlace = () => {
+    if (placeDetails?.location?.coordinates) {
+      // GeoJSON format: [longitude, latitude]
+      return {
+        latitude: placeDetails.location.coordinates[1],
+        longitude: placeDetails.location.coordinates[0]
+      };
+    }
+    
+    // Fallback to parsed address if available
+    try {
+      const parsedAddr = typeof address === "string" ? JSON.parse(address) : address;
+      if (parsedAddr?.latitude && parsedAddr?.longitude) {
+        return {
+          latitude: parseFloat(parsedAddr.latitude),
+          longitude: parseFloat(parsedAddr.longitude)
+        };
+      }
+    } catch (e) {
+      // Ignore parsing errors
+    }
+    
+    // Default coordinates
+    return {
+      latitude: 37.7749,
+      longitude: -122.4194
+    };
+  };
+
+  const { latitude, longitude } = getCoordinatesFromPlace();
+  
+  // Format address for display
+  const formatAddress = () => {
+    if (!address) return '';
+    try {
+      const addr = typeof address === "string" ? JSON.parse(address) : address;
+      return [addr.street, addr.city, addr.state].filter(Boolean).join(', ');
+    } catch (e) {
+      return address as string;
+    }
+  };
+
+  const formattedAddress = formatAddress();
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#7C3AED" />
+        <Text style={styles.loadingText}>Loading place details...</Text>
+      </View>
+    );
+  }
+
   return (
     <>
       <StatusBar barStyle="light-content" backgroundColor="#7C3AED" />
@@ -122,7 +222,6 @@ export default function PlaceMoreDetails() {
       />
 
       <View style={styles.container}>
-              {/* Content */}
         <ScrollView 
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
@@ -238,6 +337,14 @@ export default function PlaceMoreDetails() {
                       <Text style={styles.addressText}>{parsedAddress.state}</Text>
                     )}
                   </View>
+                  
+                  {/* Map Component */}
+                  <MapComponent 
+                    latitude={latitude}
+                    longitude={longitude}
+                    address={formattedAddress}
+                    placeName={Array.isArray(name) ? name[0] : name}
+                  />
                 </View>
               )}
             </View>
@@ -503,4 +610,16 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginLeft: 6,
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f8f9fa',
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#636e72',
+  },
+  
 });

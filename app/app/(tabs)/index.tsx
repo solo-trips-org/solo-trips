@@ -21,6 +21,7 @@ import { useRouter } from 'expo-router';
 import axios from 'axios';
 import SafeArea from '@/components/SafeArea';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type Place = {
   _id?: string;
@@ -45,6 +46,7 @@ const SMALL_CARD_WIDTH = width * 0.43;
 
 export default function HomeScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [nearestPlaces, setNearestPlaces] = useState<Place[]>([]);
   const [hotels, setHotels] = useState<Place[]>([]);
   const [events, setEvents] = useState<Place[]>([]);
@@ -68,16 +70,46 @@ export default function HomeScreen() {
       const radius = savedDistance ? Number(savedDistance) : 100;
       setDistance(radius);
 
+      // Request location permissions
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission denied', 'Location permission is required.');
-        setLoading(false);
+        // If permission is denied, show alert and continue with default location
+        Alert.alert(
+          'Location Permission Required',
+          'This app needs location access to show nearby places. We will show results for a default location.',
+          [{ text: 'OK' }]
+        );
+        // Use default location when permission is denied
+        await fetchWithDefaultLocation(radius);
         return;
       }
 
-      const loc = await Location.getCurrentPositionAsync({});
-      const { latitude, longitude } = loc.coords;
+      // Try to get current location
+      try {
+        const loc = await Location.getCurrentPositionAsync({});
+        const { latitude, longitude } = loc.coords;
+        await fetchWithLocation(latitude, longitude, radius);
+      } catch (locationError) {
+        console.error('Location Error:', locationError);
+        // If location request fails, fall back to default location
+        Alert.alert(
+          'Location Unavailable',
+          'Unable to get your current location. Showing results for a default location.',
+          [{ text: 'OK' }]
+        );
+        await fetchWithDefaultLocation(radius);
+      }
+    } catch (error) {
+      console.error('API Error:', error);
+      Alert.alert('Error', 'Failed to fetch data.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  // Function to fetch data with current location
+  const fetchWithLocation = async (latitude: number, longitude: number, radius: number) => {
+    try {
       // Get reverse geocoding for location name
       try {
         const locationData = await Location.reverseGeocodeAsync({ latitude, longitude });
@@ -129,10 +161,60 @@ export default function HomeScreen() {
       const guideData = await guideRes.json();
       setGuides(Array.isArray(guideData) ? guideData : guideData?.guides || []);
     } catch (error) {
-      console.error('API Error:', error);
-      Alert.alert('Error', 'Failed to fetch data.');
-    } finally {
-      setLoading(false);
+      console.error('API Error with location:', error);
+      throw error;
+    }
+  };
+
+  // Function to fetch data with default location
+  const fetchWithDefaultLocation = async (radius: number) => {
+    try {
+      // Use default location (San Francisco)
+      const latitude = 37.7749;
+      const longitude = -122.4194;
+      setUserLocation('San Francisco, CA');
+
+      const token = await AsyncStorage.getItem('authToken');
+      if (!token) {
+        Alert.alert('Error', 'No token found, please login again.');
+        router.replace('/Login');
+        return;
+      }
+
+      // Fetch nearest places
+      const placesRes = await fetch(
+        `https://trips-api.tselven.com/api/near/places?lat=${latitude}&lng=${longitude}&radius=${radius}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const placesData = await placesRes.json();
+      setNearestPlaces(Array.isArray(placesData) ? placesData : placesData?.places || []);
+
+      // Fetch hotels
+      const hotelRes = await fetch(
+        `https://trips-api.tselven.com/api/near/hotels?latitude=${latitude}&longitude=${longitude}&radius=${radius}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const hotelData = await hotelRes.json();
+      setHotels(Array.isArray(hotelData) ? hotelData : hotelData?.hotels || []);
+
+      // Fetch events
+      const eventRes = await fetch(
+        `https://trips-api.tselven.com/api/near/events?lat=${latitude}&lng=${longitude}&radius=${radius}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const eventData = await eventRes.json();
+      setEvents(Array.isArray(eventData) ? eventData : eventData?.events || []);
+
+      // Fetch guides (optional)
+      const guideRes = await fetch(
+        `https://trips-api.tselven.com/api/near/guides?city=PointPedro&gender=male&language=Tamil`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const guideData = await guideRes.json();
+      setGuides(Array.isArray(guideData) ? guideData : guideData?.guides || []);
+    } catch (error) {
+      console.error('API Error with default location:', error);
+      throw error;
     }
   };
 
@@ -270,7 +352,7 @@ export default function HomeScreen() {
 
       <ScrollView 
         style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: 40 + insets.bottom }]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl

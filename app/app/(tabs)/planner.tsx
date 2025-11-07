@@ -16,7 +16,7 @@ import { FontAwesome5 } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import HistoryDrawer from "@/app/HistoryDrawer";
 
@@ -101,6 +101,7 @@ interface TripData {
 // PlannerScreen
 // ---------------------------
 export default function PlannerScreen() {
+  const insets = useSafeAreaInsets();
   const [startPlaceId, setStartPlaceId] = useState("");
   const [endPlaceId, setEndPlaceId] = useState("");
   const [members, setMembers] = useState("1");
@@ -376,7 +377,7 @@ export default function PlannerScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#1a0a2e" }}>
       <LinearGradient colors={["#3A0751", "#7C3AED", "#3A0751"]} style={styles.container}>
-        <ScrollView contentContainerStyle={{ paddingBottom: 80 }}>
+        <ScrollView contentContainerStyle={{ paddingBottom: 80 + insets.bottom }}>
           {/* Header */}
           <View style={styles.header}>
             <Text style={styles.headerTitle}>Trip Planner</Text>

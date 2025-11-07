@@ -35,15 +35,26 @@ export default function Login() {
 
       const { status: locationStatus } = await Location.requestForegroundPermissionsAsync();
       if (locationStatus !== 'granted') {
-        Alert.alert('Permission required', 'Location permission is needed to continue.');
-        return false;
+        // Instead of failing, we'll show a warning but allow the user to continue
+        Alert.alert(
+          'Location Permission Not Granted',
+          'Location permission was not granted. The app will work but location-based features may be limited.',
+          [{ text: 'Continue', style: 'default' }]
+        );
+        // We still return true to allow the user to proceed
+        return true;
       }
 
       return true;
     } catch (error) {
       console.error('Permission error:', error);
-      Alert.alert('Error', 'Something went wrong while requesting permissions.');
-      return false;
+      // Even if there's an error with permissions, we allow the user to continue
+      Alert.alert(
+        'Permission Warning',
+        'There was an issue with permissions. The app will work but some features may be limited.',
+        [{ text: 'Continue', style: 'default' }]
+      );
+      return true;
     }
   };
 

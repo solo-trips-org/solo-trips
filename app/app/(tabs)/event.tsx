@@ -8,10 +8,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import SafeArea from '@/components/SafeArea';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
 
 export default function EventScreen() {
+  const insets = useSafeAreaInsets();
   const [district, setDistrict] = useState('');
   const [time, setTime] = useState('');
   const [events, setEvents] = useState<any[]>([]);
