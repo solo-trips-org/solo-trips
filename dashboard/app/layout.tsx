@@ -1,11 +1,9 @@
-"use client"; // Required for usePathname()
+"use client";
 
 import "./globals.css";
 import Link from "next/link";
 import { ReactNode, useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-
-// Bootstrap icons
 import "bootstrap-icons/font/bootstrap-icons.css";
 
 interface LayoutProps {
@@ -28,14 +26,12 @@ const menuItems = [
 export default function RootLayout({ children }: LayoutProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const [loading, setLoading] = useState(true); // To prevent flashing
+  const [loading, setLoading] = useState(true);
 
-  // Find current page info
-  const currentPage = menuItems.find(item => item.href === pathname);
+  const currentPage = menuItems.find((item) => item.href === pathname);
 
-  // Handle logout
   const handleLogout = async (e: React.MouseEvent) => {
-    e.preventDefault(); // Prevent default navigation
+    e.preventDefault();
     const token = localStorage.getItem("token");
 
     if (!token) {
@@ -47,26 +43,23 @@ export default function RootLayout({ children }: LayoutProps) {
       const response = await fetch("https://trips-api.tselven.com/api/logout", {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
       });
 
       if (response.ok) {
-        localStorage.removeItem("token"); // Clear token
-        router.replace("/login"); // Redirect to login
+        localStorage.removeItem("token");
+        router.replace("/login");
       } else {
         console.error("Logout failed:", response.statusText);
-        // Optionally handle error (e.g., show a message)
       }
     } catch (error) {
       console.error("Logout error:", error);
-      // Optionally handle network or other errors
     }
   };
 
   useEffect(() => {
-    // Skip token check for login page
     if (pathname === "/login") {
       setLoading(false);
       return;
@@ -75,18 +68,22 @@ export default function RootLayout({ children }: LayoutProps) {
     const token = localStorage.getItem("token");
 
     if (!token) {
-      router.replace("/login"); // Redirect if token not found
+      router.replace("/login");
     } else {
       setLoading(false);
     }
   }, [pathname, router]);
 
-  // Prevent layout flashing before token check
   if (pathname !== "/login" && loading) {
-    return null;
+    return (
+      <html lang="en">
+        <body>
+          <div>Loading...</div>
+        </body>
+      </html>
+    );
   }
 
-  // Render login page without layout
   if (pathname === "/login") {
     return (
       <html lang="en">
@@ -95,16 +92,10 @@ export default function RootLayout({ children }: LayoutProps) {
     );
   }
 
-  // Render protected pages with sidebar layout
   return (
     <html lang="en">
       <body className="flex min-h-screen bg-gray-100">
-        {/* Sidebar */}
-        <aside className="fixed top-0 left-0 w-70 h-screen bg-black text-white flex flex-col overflow-y-auto ">
-
-
-
-          {/* Logo / Header */}
+        <aside className="fixed top-0 left-0 w-70 h-screen bg-black text-white flex flex-col overflow-y-auto">
           <div className="flex items-center gap-2 px-2 py-3 bg-black border-b border-gray-800">
             <div className="w-12 h-12 rounded overflow-hidden flex items-center justify-center">
               <img src="/logo.png" alt="Logo" className="w-full h-full object-cover" />
@@ -115,27 +106,25 @@ export default function RootLayout({ children }: LayoutProps) {
             </div>
           </div>
 
-          {/* Menu */}
           <nav className="flex-1 mt-2">
             {menuItems.map((item, index) => (
               <div key={item.label}>
                 {item.isLogout ? (
-                  <button onClick={handleLogout} 
-                  className={`block w-63 px-6 py-3 flex items-center gap-3 transition-all rounded-md mx-3 my-2 
-                      bg-gradient-to-r from-red-700 to-red-500 text-white hover:from-red-600 hover:to-red-400 `}>
-
+                  <button
+                    onClick={handleLogout}
+                    className="block w-63 px-6 py-3 flex items-center gap-3 transition-all rounded-md mx-3 my-2 bg-gradient-to-r from-red-700 to-red-500 text-white hover:from-red-600 hover:to-red-400"
+                  >
                     <i className={`bi ${item.icon} text-lg`}></i>
                     <span className="font-medium">{item.label}</span>
                   </button>
                 ) : (
                   <Link
                     href={item.href}
-                    className={`h-11 block px-6 py-3 flex items-center gap-3 transition-all rounded-md mx-3 my-2 
-                      shadow-md transition-transform duration-300 ease-in-out hover:scale-105 hover:shadow-[0_10px_20px_rgba(128,0,255,0.6)]
-                      >
-                      ${pathname === item.href
+                    className={`h-11 block px-6 py-3 flex items-center gap-3 transition-all rounded-md mx-3 my-2 shadow-md transition-transform duration-300 ease-in-out hover:scale-105 hover:shadow-[0_10px_20px_rgba(128,0,255,0.6)] ${
+                      pathname === item.href
                         ? "bg-gradient-to-r from-purple-700 to-purple-500 text-white"
-                        : "hover:from-purple-600 hover:to-purple-400 bg-gradient-to-r from-gray-800 to-gray-700"}`}
+                        : "bg-gradient-to-r from-gray-800 to-gray-700 hover:from-purple-600 hover:to-purple-400"
+                    }`}
                   >
                     <i className={`bi ${item.icon} text-lg`}></i>
                     <span className="font-medium">{item.label}</span>
@@ -147,9 +136,7 @@ export default function RootLayout({ children }: LayoutProps) {
           </nav>
         </aside>
 
-        {/* Main Content */}
         <main className="flex-1 ml-64 p-6 overflow-y-auto min-h-screen">
-          {/* Dynamic Page Header */}
           <div>{children}</div>
         </main>
       </body>
