@@ -17,6 +17,7 @@ import allowedRoles from "./app/middlewares/allowed_roles.middleware.js";
 import { Place } from "./app/models/place.model.js";
 import { Event } from "./app/models/event.model.js";
 import { Guide } from "./app/models/guide.model.js";
+import { Hotel } from "./app/models/hotel.model.js";
 import { getNearbyPlaces } from "./app/controllers/place.controller.js";
 import { getNearbyHotels } from "./app/controllers/hotel.controller.js";
 import { getNearbyEvents } from "./app/controllers/event.controller.js";
@@ -37,6 +38,7 @@ router.post("/reset-password", resetPassword);
 router.use("/places", requireAuth, allowedRoles("admin"), createCrud(Place));
 router.use("/events", requireAuth, allowedRoles("admin"), createCrud(Event));
 router.use("/guides", requireAuth, allowedRoles("admin"), createCrud(Guide));
+router.use("/hotels", requireAuth, allowedRoles("admin"), createCrud(Hotel));
 router.use("/users", requireAuth, allowedRoles("admin"), createCrud(User));
 
 router.get("/near/places", requireAuth, getNearbyPlaces);

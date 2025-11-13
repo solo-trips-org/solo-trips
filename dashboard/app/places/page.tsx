@@ -46,9 +46,10 @@ type Place = {
 };
 
 type Media = {
-  id: string;
+  _id: string;
   url: string;
-  name: string;
+  originalName: string;
+  mimeType: string;
 };
 
 const API_BASE = "https://trips-api.tselven.com/api/places";
@@ -467,11 +468,20 @@ export default function PlacesPage() {
                   <p><strong>Name:</strong> {selectedPlace.name}</p>
                   <p><strong>Description:</strong> {selectedPlace.description}</p>
                   <p><strong>Category:</strong> {selectedPlace.category}</p>
-                  <img
-                    src={selectedPlace.image}
-                    alt={selectedPlace.name}
-                    className="w-full h-48 object-cover rounded"
-                  />
+                  {selectedPlace.image && (
+                    <div>
+                      <strong>Image:</strong>
+                      <img
+                        src={selectedPlace.image}
+                        alt={selectedPlace.name}
+                        className="w-full h-48 object-cover rounded mt-2"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = "none";
+                        }}
+                      />
+                      <p className="text-xs text-gray-400 mt-1 break-all">{selectedPlace.image}</p>
+                    </div>
+                  )}
                   <p>
                     <strong>Address:</strong> {selectedPlace.address.street},{" "}
                     {selectedPlace.address.city}, {selectedPlace.address.state},{" "}
@@ -535,9 +545,9 @@ export default function PlacesPage() {
                       name="image"
                       value={formData.image || ""}
                       onChange={handleChange}
-                      onClick={openMediaModal}
+                      onDoubleClick={openMediaModal}
                       className="w-full bg-gray-700 border border-gray-600 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent cursor-pointer"
-                      placeholder="Click to select an image"
+                      placeholder="Double-click to select from media library"
                     />
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -722,20 +732,26 @@ export default function PlacesPage() {
                 {mediaItems.length > 0 ? (
                   mediaItems.map((media) => (
                     <div
-                      key={media.id}
+                      key={media._id}
                       onClick={() => selectMedia(media.url)}
                       className="cursor-pointer bg-gray-700 rounded-lg overflow-hidden hover:bg-gray-600 transition-colors"
                     >
-                      <img
-                        src={media.url}
-                        alt={media.name}
-                        className="w-full h-32 object-cover"
-                      />
-                      <p className="p-2 text-sm text-gray-300 truncate">{media.name}</p>
+                      {media.mimeType?.startsWith("image/") ? (
+                        <img
+                          src={media.url}
+                          alt={media.originalName}
+                          className="w-full h-32 object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-32 flex items-center justify-center bg-gray-600">
+                          <p className="text-sm text-gray-300">{media.originalName}</p>
+                        </div>
+                      )}
+                      <p className="p-2 text-sm text-gray-300 truncate">{media.originalName}</p>
                     </div>
                   ))
                 ) : (
-                  <p className="text-gray-300">No media available</p>
+                  <p className="text-gray-300 col-span-3 text-center py-8">No media available</p>
                 )}
               </div>
               <div className="flex justify-end mt-4">
