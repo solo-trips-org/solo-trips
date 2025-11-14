@@ -24,6 +24,7 @@ import { updateProfile } from "./app/controllers/user.controller.js";
 import { Place } from "./app/models/place.model.js";
 import { Event } from "./app/models/event.model.js";
 import { Guide } from "./app/models/guide.model.js";
+import { Hotel } from "./app/models/hotel.model.js";
 import { getNearbyPlaces } from "./app/controllers/place.controller.js";
 import { getNearbyHotels } from "./app/controllers/hotel.controller.js";
 import { getNearbyEvents } from "./app/controllers/event.controller.js";
@@ -62,6 +63,12 @@ router.post("/new-otp", newOTP);
 router.post("/forget-password", resetPasswordWithOTP);
 router.delete("/account", requireAuth, deleteAccount);
 
+<<<<<<< HEAD
+router.use("/places", requireAuth, allowedRoles("admin"), createCrud(Place));
+router.use("/events", requireAuth, allowedRoles("admin"), createCrud(Event));
+router.use("/guides", requireAuth, allowedRoles("admin"), createCrud(Guide));
+router.use("/hotels", requireAuth, allowedRoles("admin"), createCrud(Hotel));
+=======
 router.use("/places", requireAuth, createCrud(Place, {
   middlewares: {
     create: [allowedRoles("admin")],
@@ -90,6 +97,7 @@ router.use("/hotels", requireAuth, createCrud(Hotel, {
     remove: [allowedRoles("admin")]
   }
 }));
+>>>>>>> 02dfd802fa9e6afab86dd5117110c60b963a559d
 router.use("/users", requireAuth, allowedRoles("admin"), createCrud(User));
 
 //----------------- NearBy Finding Routes ---------------------//

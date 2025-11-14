@@ -1,8 +1,9 @@
 "use client";
+
 import { useState, useEffect } from "react";
 import { Pencil, Eye, Trash2, Plus, X } from "lucide-react";
 
-// TypeScript types based on backend Event model
+// TypeScript types based on backend Hotel model
 type Address = {
   street: string;
   city: string;
@@ -11,30 +12,26 @@ type Address = {
   country: string;
 };
 
-type Schedule = {
-  from: string;
-  to: string;
-};
-
 type LocationType = {
   type: string;
   coordinates: [number, number];
 };
 
-type EventType = {
+type Hotel = {
   _id: string;
-  title: string; // Backend uses 'title', not 'name'
-  description: string;
-  schedule: Schedule; // Backend uses 'schedule' with 'from' and 'to', not 'date' and 'time'
-  address: Address; // Backend uses 'address' object
+  name: string;
+  category?: string;
+  type: "Hotel" | "Restaurent";
+  address: Address;
+  image?: string;
   location: LocationType;
-  image: string;
+  description?: string;
   createdAt: string;
   updatedAt: string;
-  __v: number;
+  __v?: number;
 };
 
-const API_BASE = "https://trips-api.tselven.com/api/events";
+const API_BASE = "https://trips-api.tselven.com/api/hotels";
 const MEDIA_API = "https://trips-api.tselven.com/api/media";
 
 type MediaItem = {
@@ -44,8 +41,8 @@ type MediaItem = {
   mimeType: string;
 };
 
-export default function EventsPage() {
-  const [events, setEvents] = useState<EventType[]>([]);
+export default function HotelsRestaurantsPage() {
+  const [hotels, setHotels] = useState<Hotel[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
@@ -56,15 +53,15 @@ export default function EventsPage() {
   // Modal states
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"add" | "edit" | "view">("add");
-  const [selectedEvent, setSelectedEvent] = useState<EventType | null>(null);
-  const [formData, setFormData] = useState<Partial<EventType>>({});
+  const [selectedHotel, setSelectedHotel] = useState<Hotel | null>(null);
+  const [formData, setFormData] = useState<Partial<Hotel>>({});
 
   // Media modal states
   const [mediaModalOpen, setMediaModalOpen] = useState(false);
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
 
-  // Fetch Events
-  const fetchEvents = async (pageNum: number = page, limitNum: number = limit) => {
+  // Fetch Hotels
+  const fetchHotels = async (pageNum: number = page, limitNum: number = limit) => {
     try {
       setLoading(true);
       setError(null);
@@ -72,9 +69,9 @@ export default function EventsPage() {
       const res = await fetch(`${API_BASE}?limit=${limitNum}&page=${pageNum}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
-      if (!res.ok) throw new Error("Failed to fetch events");
+      if (!res.ok) throw new Error("Failed to fetch hotels");
       const { data, meta } = await res.json();
-      setEvents(data || []);
+      setHotels(data || []);
       setTotal(meta?.total || 0);
       setTotalPages(meta?.totalPages || 1);
     } catch (err) {
@@ -85,30 +82,32 @@ export default function EventsPage() {
   };
 
   useEffect(() => {
-    fetchEvents();
+    fetchHotels(page, limit);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page]);
 
-  const openModal = (mode: "add" | "edit" | "view", event?: EventType) => {
+  const openModal = (mode: "add" | "edit" | "view", hotel?: Hotel) => {
     setModalMode(mode);
     if (mode === "add") {
       setFormData({
-        title: "",
-        description: "",
-        schedule: { from: "", to: "" },
+        name: "",
+        category: "",
+        type: "Hotel",
         address: { street: "", city: "", state: "", zipCode: "", country: "" },
         location: { type: "Point", coordinates: [0, 0] },
         image: "",
+        description: "",
       });
-    } else if (event) {
-      setSelectedEvent(event);
-      setFormData({ ...event });
+    } else if (hotel) {
+      setSelectedHotel(hotel);
+      setFormData({ ...hotel });
     }
     setModalOpen(true);
   };
 
   const closeModal = () => {
     setModalOpen(false);
-    setSelectedEvent(null);
+    setSelectedHotel(null);
     setFormData({});
   };
 
@@ -153,15 +152,6 @@ export default function EventsPage() {
           [addressField]: value,
         },
       });
-    } else if (name.startsWith("schedule.")) {
-      const scheduleField = name.split(".")[1];
-      setFormData({
-        ...formData,
-        schedule: {
-          ...(formData.schedule || { from: "", to: "" }),
-          [scheduleField]: value,
-        },
-      });
     } else if (name.startsWith("location.coordinates.")) {
       const coordIndex = parseInt(name.split(".")[2]);
       const coords = formData.location?.coordinates || [0, 0];
@@ -182,15 +172,8 @@ export default function EventsPage() {
     e.preventDefault();
     const token = localStorage.getItem("token");
     try {
-      // Format the data for backend (convert schedule strings to ISO dates)
       const submitData = {
         ...formData,
-        schedule: formData.schedule
-          ? {
-              from: formData.schedule.from ? new Date(formData.schedule.from).toISOString() : "",
-              to: formData.schedule.to ? new Date(formData.schedule.to).toISOString() : "",
-            }
-          : { from: "", to: "" },
         location: formData.location || { type: "Point", coordinates: [0, 0] },
       };
 
@@ -203,8 +186,8 @@ export default function EventsPage() {
           },
           body: JSON.stringify(submitData),
         });
-      } else if (modalMode === "edit" && selectedEvent?._id) {
-        await fetch(`${API_BASE}/${selectedEvent._id}`, {
+      } else if (modalMode === "edit" && selectedHotel?._id) {
+        await fetch(`${API_BASE}/${selectedHotel._id}`, {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
@@ -213,19 +196,22 @@ export default function EventsPage() {
           body: JSON.stringify(submitData),
         });
       }
-      fetchEvents();
+      fetchHotels();
       closeModal();
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed");
     }
   };
 
-  const deleteEvent = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this event?")) return;
+  const deleteHotel = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this hotel/restaurant?")) return;
     const token = localStorage.getItem("token");
     try {
-      await fetch(`${API_BASE}/${id}`, { method: "DELETE", headers: token ? { Authorization: `Bearer ${token}` } : {} });
-      fetchEvents();
+      await fetch(`${API_BASE}/${id}`, {
+        method: "DELETE",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      fetchHotels();
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed");
     }
@@ -238,12 +224,12 @@ export default function EventsPage() {
     <div className="min-h-screen p-6 bg-gray-900 text-white">
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-between mb-6">
-          <h1 className="text-2xl font-bold">Events Dashboard</h1>
+          <h1 className="text-2xl font-bold">Hotels & Restaurants Dashboard</h1>
           <button
             onClick={() => openModal("add")}
             className="flex items-center gap-2 bg-indigo-600 px-4 py-2 rounded hover:bg-indigo-700"
           >
-            <Plus /> Add New Event
+            <Plus /> Add New Hotel/Restaurant
           </button>
         </div>
 
@@ -251,41 +237,37 @@ export default function EventsPage() {
           <thead className="bg-gray-700">
             <tr>
               <th className="px-4 py-2">ID</th>
-              <th className="px-4 py-2">Title</th>
+              <th className="px-4 py-2">Name</th>
+              <th className="px-4 py-2">Type</th>
+              <th className="px-4 py-2">Category</th>
               <th className="px-4 py-2">City</th>
-              <th className="px-4 py-2">Start Date</th>
-              <th className="px-4 py-2">End Date</th>
               <th className="px-4 py-2">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-700">
-            {events.length > 0 ? (
-              events.map((event) => (
-                <tr key={event._id} className="hover:bg-gray-700/50 transition">
-                  <td className="px-4 py-2">{event._id.slice(-6)}</td>
-                  <td className="px-4 py-2">{event.title || "N/A"}</td>
-                  <td className="px-4 py-2">{event.address?.city || "N/A"}</td>
-                  <td className="px-4 py-2">
-                    {event.schedule?.from ? new Date(event.schedule.from).toLocaleDateString() : "N/A"}
-                  </td>
-                  <td className="px-4 py-2">
-                    {event.schedule?.to ? new Date(event.schedule.to).toLocaleDateString() : "N/A"}
-                  </td>
+            {hotels.length > 0 ? (
+              hotels.map((hotel) => (
+                <tr key={hotel._id} className="hover:bg-gray-700/50 transition">
+                  <td className="px-4 py-2">{hotel._id.slice(-6)}</td>
+                  <td className="px-4 py-2">{hotel.name || "N/A"}</td>
+                  <td className="px-4 py-2">{hotel.type || "N/A"}</td>
+                  <td className="px-4 py-2">{hotel.category || "N/A"}</td>
+                  <td className="px-4 py-2">{hotel.address?.city || "N/A"}</td>
                   <td className="px-4 py-2 flex gap-2">
                     <button
-                      onClick={() => openModal("edit", event)}
+                      onClick={() => openModal("edit", hotel)}
                       className="p-2 bg-yellow-600 rounded hover:bg-yellow-500"
                     >
                       <Pencil size={16} />
                     </button>
                     <button
-                      onClick={() => openModal("view", event)}
+                      onClick={() => openModal("view", hotel)}
                       className="p-2 bg-blue-600 rounded hover:bg-blue-500"
                     >
                       <Eye size={16} />
                     </button>
                     <button
-                      onClick={() => deleteEvent(event._id)}
+                      onClick={() => deleteHotel(hotel._id)}
                       className="p-2 bg-red-600 rounded hover:bg-red-500"
                     >
                       <Trash2 size={16} />
@@ -296,7 +278,7 @@ export default function EventsPage() {
             ) : (
               <tr>
                 <td colSpan={6} className="text-center py-4 text-gray-400">
-                  No events found.
+                  No hotels/restaurants found.
                 </td>
               </tr>
             )}
@@ -305,12 +287,12 @@ export default function EventsPage() {
 
         {/* Pagination */}
         <div className="flex justify-between items-center mt-4">
-          <span>Total Events: {total}</span>
+          <span>Total Hotels/Restaurants: {total}</span>
           <div className="flex gap-2">
             <button
               disabled={page === 1}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
-              className="px-3 py-1 bg-gray-700 rounded hover:bg-gray-600"
+              className="px-3 py-1 bg-gray-700 rounded hover:bg-gray-600 disabled:opacity-50"
             >
               Prev
             </button>
@@ -320,7 +302,7 @@ export default function EventsPage() {
             <button
               disabled={page >= totalPages}
               onClick={() => setPage((p) => p + 1)}
-              className="px-3 py-1 bg-gray-700 rounded hover:bg-gray-600"
+              className="px-3 py-1 bg-gray-700 rounded hover:bg-gray-600 disabled:opacity-50"
             >
               Next
             </button>
@@ -334,72 +316,106 @@ export default function EventsPage() {
           <div className="bg-gray-800 rounded-xl p-6 w-full max-w-md max-h-[80vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold">
-                {modalMode === "add" ? "Add Event" : modalMode === "edit" ? "Edit Event" : "View Event"}
+                {modalMode === "add"
+                  ? "Add Hotel/Restaurant"
+                  : modalMode === "edit"
+                  ? "Edit Hotel/Restaurant"
+                  : "View Hotel/Restaurant"}
               </h2>
               <button onClick={closeModal}>
                 <X size={24} />
               </button>
             </div>
 
-            {modalMode === "view" && selectedEvent ? (
+            {modalMode === "view" && selectedHotel ? (
               <div className="space-y-2 text-gray-300">
                 <p>
-                  <strong>Title:</strong> {selectedEvent.title}
+                  <strong>Name:</strong> {selectedHotel.name}
                 </p>
                 <p>
-                  <strong>Description:</strong> {selectedEvent.description || "N/A"}
+                  <strong>Type:</strong> {selectedHotel.type}
                 </p>
-                {selectedEvent.image && (
+                <p>
+                  <strong>Category:</strong> {selectedHotel.category || "N/A"}
+                </p>
+                <p>
+                  <strong>Description:</strong> {selectedHotel.description || "N/A"}
+                </p>
+                {selectedHotel.image && (
                   <div>
                     <strong>Image:</strong>
                     <img
-                      src={selectedEvent.image}
-                      alt={selectedEvent.title}
+                      src={selectedHotel.image}
+                      alt={selectedHotel.name}
                       className="w-full h-48 object-cover rounded mt-2"
                       onError={(e) => {
                         (e.target as HTMLImageElement).style.display = "none";
                       }}
                     />
-                    <p className="text-xs text-gray-400 mt-1 break-all">{selectedEvent.image}</p>
+                    <p className="text-xs text-gray-400 mt-1 break-all">{selectedHotel.image}</p>
                   </div>
                 )}
                 <p>
                   <strong>Address:</strong>{" "}
-                  {selectedEvent.address
-                    ? `${selectedEvent.address.street}, ${selectedEvent.address.city}, ${selectedEvent.address.state} ${selectedEvent.address.zipCode}, ${selectedEvent.address.country}`
-                    : "N/A"}
-                </p>
-                <p>
-                  <strong>Start Date:</strong>{" "}
-                  {selectedEvent.schedule?.from
-                    ? new Date(selectedEvent.schedule.from).toLocaleString()
-                    : "N/A"}
-                </p>
-                <p>
-                  <strong>End Date:</strong>{" "}
-                  {selectedEvent.schedule?.to
-                    ? new Date(selectedEvent.schedule.to).toLocaleString()
+                  {selectedHotel.address
+                    ? `${selectedHotel.address.street}, ${selectedHotel.address.city}, ${selectedHotel.address.state} ${selectedHotel.address.zipCode}, ${selectedHotel.address.country}`
                     : "N/A"}
                 </p>
                 <p>
                   <strong>Location:</strong>{" "}
-                  {selectedEvent.location?.coordinates
-                    ? `Lat: ${selectedEvent.location.coordinates[1]}, Lng: ${selectedEvent.location.coordinates[0]}`
+                  {selectedHotel.location?.coordinates
+                    ? `Lat: ${selectedHotel.location.coordinates[1]}, Lng: ${selectedHotel.location.coordinates[0]}`
                     : "N/A"}
                 </p>
+                {selectedHotel.createdAt && (
+                  <p>
+                    <strong>Created:</strong> {new Date(selectedHotel.createdAt).toLocaleString()}
+                  </p>
+                )}
+                {selectedHotel.updatedAt && (
+                  <p>
+                    <strong>Updated:</strong> {new Date(selectedHotel.updatedAt).toLocaleString()}
+                  </p>
+                )}
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                  <label className="block text-sm">Title</label>
+                  <label className="block text-sm">Name</label>
                   <input
-                    name="title"
-                    value={formData.title || ""}
+                    name="name"
+                    value={formData.name || ""}
                     onChange={handleChange}
                     className="w-full bg-gray-700 border border-gray-600 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                     required
                   />
                 </div>
+
+                <div>
+                  <label className="block text-sm">Type</label>
+                  <select
+                    name="type"
+                    value={formData.type || "Hotel"}
+                    onChange={handleChange}
+                    className="w-full bg-gray-700 border border-gray-600 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    required
+                  >
+                    <option value="Hotel">Hotel</option>
+                    <option value="Restaurent">Restaurant</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm">Category</label>
+                  <input
+                    name="category"
+                    value={formData.category || ""}
+                    onChange={handleChange}
+                    className="w-full bg-gray-700 border border-gray-600 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    placeholder="e.g., Luxury, Mid-range, Budget"
+                  />
+                </div>
+
                 <div>
                   <label className="block text-sm">Description</label>
                   <textarea
@@ -410,6 +426,7 @@ export default function EventsPage() {
                     rows={3}
                   />
                 </div>
+
                 <div>
                   <label className="block text-sm font-semibold mb-2">Address</label>
                   <div className="space-y-2">
@@ -455,41 +472,7 @@ export default function EventsPage() {
                     />
                   </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-semibold mb-2">Schedule</label>
-                  <div className="space-y-2">
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1">Start Date & Time</label>
-                      <input
-                        type="datetime-local"
-                        name="schedule.from"
-                        value={
-                          formData.schedule?.from
-                            ? new Date(formData.schedule.from).toISOString().slice(0, 16)
-                            : ""
-                        }
-                        onChange={handleChange}
-                        className="w-full bg-gray-700 border border-gray-600 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1">End Date & Time</label>
-                      <input
-                        type="datetime-local"
-                        name="schedule.to"
-                        value={
-                          formData.schedule?.to
-                            ? new Date(formData.schedule.to).toISOString().slice(0, 16)
-                            : ""
-                        }
-                        onChange={handleChange}
-                        className="w-full bg-gray-700 border border-gray-600 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                        required
-                      />
-                    </div>
-                  </div>
-                </div>
+
                 <div>
                   <label className="block text-sm font-semibold mb-2">Location Coordinates</label>
                   <div className="grid grid-cols-2 gap-2">
@@ -521,6 +504,7 @@ export default function EventsPage() {
                     </div>
                   </div>
                 </div>
+
                 <div>
                   <label className="block text-sm">Image URL</label>
                   <input
@@ -546,7 +530,7 @@ export default function EventsPage() {
                     type="submit"
                     className="px-4 py-2 bg-indigo-600 rounded-lg hover:bg-indigo-500 transition-colors"
                   >
-                    {modalMode === "add" ? "Create Event" : "Update Event"}
+                    {modalMode === "add" ? "Create Hotel/Restaurant" : "Update Hotel/Restaurant"}
                   </button>
                 </div>
               </form>
@@ -605,3 +589,4 @@ export default function EventsPage() {
     </div>
   );
 }
+
