@@ -1,0 +1,12 @@
+node_modules
+.env
+.env.example
+
+LICENCE.md
+tests
+
+.git
+.gitignore
+
+app/seeders
+run-seeders.js
