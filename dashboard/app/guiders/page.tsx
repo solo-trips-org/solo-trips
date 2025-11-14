@@ -1,8 +1,9 @@
 "use client";
+
 import { useState, useEffect } from "react";
 import { Pencil, Eye, Trash2, Plus, X } from "lucide-react";
 
-// TypeScript types based on backend Event model
+// Types based on backend Guide model
 type Address = {
   street: string;
   city: string;
@@ -11,30 +12,20 @@ type Address = {
   country: string;
 };
 
-type Schedule = {
-  from: string;
-  to: string;
-};
-
-type LocationType = {
-  type: string;
-  coordinates: [number, number];
-};
-
-type EventType = {
+type Guide = {
   _id: string;
-  title: string; // Backend uses 'title', not 'name'
-  description: string;
-  schedule: Schedule; // Backend uses 'schedule' with 'from' and 'to', not 'date' and 'time'
-  address: Address; // Backend uses 'address' object
-  location: LocationType;
-  image: string;
+  name: string;
+  phone: string;
+  gender: "male" | "female" | "other";
+  address: Address;
+  languages: string[];
+  contactInfo?: string;
   createdAt: string;
   updatedAt: string;
-  __v: number;
+  __v?: number;
 };
 
-const API_BASE = "https://trips-api.tselven.com/api/events";
+const API_BASE = "https://trips-api.tselven.com/api/guides";
 const MEDIA_API = "https://trips-api.tselven.com/api/media";
 
 type MediaItem = {
@@ -44,8 +35,8 @@ type MediaItem = {
   mimeType: string;
 };
 
-export default function EventsPage() {
-  const [events, setEvents] = useState<EventType[]>([]);
+export default function GuidersPage() {
+  const [guides, setGuides] = useState<Guide[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
@@ -56,15 +47,15 @@ export default function EventsPage() {
   // Modal states
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"add" | "edit" | "view">("add");
-  const [selectedEvent, setSelectedEvent] = useState<EventType | null>(null);
-  const [formData, setFormData] = useState<Partial<EventType>>({});
+  const [selectedGuide, setSelectedGuide] = useState<Guide | null>(null);
+  const [formData, setFormData] = useState<Partial<Guide> & { languagesInput?: string }>({});
 
   // Media modal states
   const [mediaModalOpen, setMediaModalOpen] = useState(false);
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
 
-  // Fetch Events
-  const fetchEvents = async (pageNum: number = page, limitNum: number = limit) => {
+  // Fetch Guides
+  const fetchGuides = async (pageNum: number = page, limitNum: number = limit) => {
     try {
       setLoading(true);
       setError(null);
@@ -72,9 +63,9 @@ export default function EventsPage() {
       const res = await fetch(`${API_BASE}?limit=${limitNum}&page=${pageNum}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
-      if (!res.ok) throw new Error("Failed to fetch events");
+      if (!res.ok) throw new Error("Failed to fetch guides");
       const { data, meta } = await res.json();
-      setEvents(data || []);
+      setGuides(data || []);
       setTotal(meta?.total || 0);
       setTotalPages(meta?.totalPages || 1);
     } catch (err) {
@@ -85,30 +76,35 @@ export default function EventsPage() {
   };
 
   useEffect(() => {
-    fetchEvents();
+    fetchGuides(page, limit);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page]);
 
-  const openModal = (mode: "add" | "edit" | "view", event?: EventType) => {
+  const openModal = (mode: "add" | "edit" | "view", guide?: Guide) => {
     setModalMode(mode);
     if (mode === "add") {
       setFormData({
-        title: "",
-        description: "",
-        schedule: { from: "", to: "" },
+        name: "",
+        phone: "",
+        gender: "male",
         address: { street: "", city: "", state: "", zipCode: "", country: "" },
-        location: { type: "Point", coordinates: [0, 0] },
-        image: "",
+        languages: [],
+        contactInfo: "",
+        languagesInput: "",
       });
-    } else if (event) {
-      setSelectedEvent(event);
-      setFormData({ ...event });
+    } else if (guide) {
+      setSelectedGuide(guide);
+      setFormData({
+        ...guide,
+        languagesInput: guide.languages?.join(", ") || "",
+      });
     }
     setModalOpen(true);
   };
 
   const closeModal = () => {
     setModalOpen(false);
-    setSelectedEvent(null);
+    setSelectedGuide(null);
     setFormData({});
   };
 
@@ -136,12 +132,12 @@ export default function EventsPage() {
   };
 
   const selectMedia = (url: string) => {
-    setFormData({ ...formData, image: url });
+    setFormData({ ...formData, contactInfo: url });
     setMediaModalOpen(false);
   };
 
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ) => {
     const { name, value } = e.target;
     if (name.startsWith("address.")) {
@@ -153,46 +149,30 @@ export default function EventsPage() {
           [addressField]: value,
         },
       });
-    } else if (name.startsWith("schedule.")) {
-      const scheduleField = name.split(".")[1];
-      setFormData({
-        ...formData,
-        schedule: {
-          ...(formData.schedule || { from: "", to: "" }),
-          [scheduleField]: value,
-        },
-      });
-    } else if (name.startsWith("location.coordinates.")) {
-      const coordIndex = parseInt(name.split(".")[2]);
-      const coords = formData.location?.coordinates || [0, 0];
-      coords[coordIndex] = parseFloat(value) || 0;
-      setFormData({
-        ...formData,
-        location: {
-          type: "Point",
-          coordinates: coords,
-        },
-      });
     } else {
       setFormData({ ...formData, [name]: value });
     }
+  };
+
+  const handleLanguagesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    const languagesArray = value.split(",").map((lang) => lang.trim()).filter((lang) => lang);
+    setFormData({
+      ...formData,
+      languagesInput: value,
+      languages: languagesArray,
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const token = localStorage.getItem("token");
     try {
-      // Format the data for backend (convert schedule strings to ISO dates)
       const submitData = {
         ...formData,
-        schedule: formData.schedule
-          ? {
-              from: formData.schedule.from ? new Date(formData.schedule.from).toISOString() : "",
-              to: formData.schedule.to ? new Date(formData.schedule.to).toISOString() : "",
-            }
-          : { from: "", to: "" },
-        location: formData.location || { type: "Point", coordinates: [0, 0] },
+        languages: formData.languages || [],
       };
+      delete (submitData as any).languagesInput;
 
       if (modalMode === "add") {
         await fetch(API_BASE, {
@@ -203,8 +183,8 @@ export default function EventsPage() {
           },
           body: JSON.stringify(submitData),
         });
-      } else if (modalMode === "edit" && selectedEvent?._id) {
-        await fetch(`${API_BASE}/${selectedEvent._id}`, {
+      } else if (modalMode === "edit" && selectedGuide?._id) {
+        await fetch(`${API_BASE}/${selectedGuide._id}`, {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
@@ -213,19 +193,22 @@ export default function EventsPage() {
           body: JSON.stringify(submitData),
         });
       }
-      fetchEvents();
+      fetchGuides();
       closeModal();
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed");
     }
   };
 
-  const deleteEvent = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this event?")) return;
+  const deleteGuide = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this guide?")) return;
     const token = localStorage.getItem("token");
     try {
-      await fetch(`${API_BASE}/${id}`, { method: "DELETE", headers: token ? { Authorization: `Bearer ${token}` } : {} });
-      fetchEvents();
+      await fetch(`${API_BASE}/${id}`, {
+        method: "DELETE",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      fetchGuides();
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed");
     }
@@ -238,12 +221,12 @@ export default function EventsPage() {
     <div className="min-h-screen p-6 bg-gray-900 text-white">
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-between mb-6">
-          <h1 className="text-2xl font-bold">Events Dashboard</h1>
+          <h1 className="text-2xl font-bold">Guiders Dashboard</h1>
           <button
             onClick={() => openModal("add")}
             className="flex items-center gap-2 bg-indigo-600 px-4 py-2 rounded hover:bg-indigo-700"
           >
-            <Plus /> Add New Event
+            <Plus /> Add New Guide
           </button>
         </div>
 
@@ -251,41 +234,39 @@ export default function EventsPage() {
           <thead className="bg-gray-700">
             <tr>
               <th className="px-4 py-2">ID</th>
-              <th className="px-4 py-2">Title</th>
+              <th className="px-4 py-2">Name</th>
+              <th className="px-4 py-2">Phone</th>
+              <th className="px-4 py-2">Gender</th>
               <th className="px-4 py-2">City</th>
-              <th className="px-4 py-2">Start Date</th>
-              <th className="px-4 py-2">End Date</th>
+              <th className="px-4 py-2">Languages</th>
               <th className="px-4 py-2">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-700">
-            {events.length > 0 ? (
-              events.map((event) => (
-                <tr key={event._id} className="hover:bg-gray-700/50 transition">
-                  <td className="px-4 py-2">{event._id.slice(-6)}</td>
-                  <td className="px-4 py-2">{event.title || "N/A"}</td>
-                  <td className="px-4 py-2">{event.address?.city || "N/A"}</td>
-                  <td className="px-4 py-2">
-                    {event.schedule?.from ? new Date(event.schedule.from).toLocaleDateString() : "N/A"}
-                  </td>
-                  <td className="px-4 py-2">
-                    {event.schedule?.to ? new Date(event.schedule.to).toLocaleDateString() : "N/A"}
-                  </td>
+            {guides.length > 0 ? (
+              guides.map((guide) => (
+                <tr key={guide._id} className="hover:bg-gray-700/50 transition">
+                  <td className="px-4 py-2">{guide._id.slice(-6)}</td>
+                  <td className="px-4 py-2">{guide.name}</td>
+                  <td className="px-4 py-2">{guide.phone}</td>
+                  <td className="px-4 py-2 capitalize">{guide.gender}</td>
+                  <td className="px-4 py-2">{guide.address?.city || "N/A"}</td>
+                  <td className="px-4 py-2">{guide.languages?.join(", ") || "N/A"}</td>
                   <td className="px-4 py-2 flex gap-2">
                     <button
-                      onClick={() => openModal("edit", event)}
+                      onClick={() => openModal("edit", guide)}
                       className="p-2 bg-yellow-600 rounded hover:bg-yellow-500"
                     >
                       <Pencil size={16} />
                     </button>
                     <button
-                      onClick={() => openModal("view", event)}
+                      onClick={() => openModal("view", guide)}
                       className="p-2 bg-blue-600 rounded hover:bg-blue-500"
                     >
                       <Eye size={16} />
                     </button>
                     <button
-                      onClick={() => deleteEvent(event._id)}
+                      onClick={() => deleteGuide(guide._id)}
                       className="p-2 bg-red-600 rounded hover:bg-red-500"
                     >
                       <Trash2 size={16} />
@@ -295,8 +276,8 @@ export default function EventsPage() {
               ))
             ) : (
               <tr>
-                <td colSpan={6} className="text-center py-4 text-gray-400">
-                  No events found.
+                <td colSpan={7} className="text-center py-4 text-gray-400">
+                  No guides found.
                 </td>
               </tr>
             )}
@@ -305,12 +286,12 @@ export default function EventsPage() {
 
         {/* Pagination */}
         <div className="flex justify-between items-center mt-4">
-          <span>Total Events: {total}</span>
+          <span>Total Guides: {total}</span>
           <div className="flex gap-2">
             <button
               disabled={page === 1}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
-              className="px-3 py-1 bg-gray-700 rounded hover:bg-gray-600"
+              className="px-3 py-1 bg-gray-700 rounded hover:bg-gray-600 disabled:opacity-50"
             >
               Prev
             </button>
@@ -320,7 +301,7 @@ export default function EventsPage() {
             <button
               disabled={page >= totalPages}
               onClick={() => setPage((p) => p + 1)}
-              className="px-3 py-1 bg-gray-700 rounded hover:bg-gray-600"
+              className="px-3 py-1 bg-gray-700 rounded hover:bg-gray-600 disabled:opacity-50"
             >
               Next
             </button>
@@ -334,82 +315,95 @@ export default function EventsPage() {
           <div className="bg-gray-800 rounded-xl p-6 w-full max-w-md max-h-[80vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold">
-                {modalMode === "add" ? "Add Event" : modalMode === "edit" ? "Edit Event" : "View Event"}
+                {modalMode === "add" ? "Add Guide" : modalMode === "edit" ? "Edit Guide" : "View Guide"}
               </h2>
               <button onClick={closeModal}>
                 <X size={24} />
               </button>
             </div>
 
-            {modalMode === "view" && selectedEvent ? (
+            {modalMode === "view" && selectedGuide ? (
               <div className="space-y-2 text-gray-300">
                 <p>
-                  <strong>Title:</strong> {selectedEvent.title}
+                  <strong>Name:</strong> {selectedGuide.name}
                 </p>
                 <p>
-                  <strong>Description:</strong> {selectedEvent.description || "N/A"}
+                  <strong>Phone:</strong> {selectedGuide.phone}
                 </p>
-                {selectedEvent.image && (
+                <p>
+                  <strong>Gender:</strong> {selectedGuide.gender}
+                </p>
+                <p>
+                  <strong>Address:</strong>{" "}
+                  {selectedGuide.address
+                    ? `${selectedGuide.address.street}, ${selectedGuide.address.city}, ${selectedGuide.address.state}, ${selectedGuide.address.zipCode}, ${selectedGuide.address.country}`
+                    : "N/A"}
+                </p>
+                <p>
+                  <strong>Languages:</strong> {selectedGuide.languages?.join(", ") || "N/A"}
+                </p>
+                <p>
+                  <strong>Contact Info:</strong> {selectedGuide.contactInfo || "N/A"}
+                </p>
+                {selectedGuide.contactInfo && (
                   <div>
-                    <strong>Image:</strong>
+                    <strong>Contact Image:</strong>
                     <img
-                      src={selectedEvent.image}
-                      alt={selectedEvent.title}
+                      src={selectedGuide.contactInfo}
+                      alt={selectedGuide.name}
                       className="w-full h-48 object-cover rounded mt-2"
                       onError={(e) => {
                         (e.target as HTMLImageElement).style.display = "none";
                       }}
                     />
-                    <p className="text-xs text-gray-400 mt-1 break-all">{selectedEvent.image}</p>
+                    <p className="text-xs text-gray-400 mt-1 break-all">{selectedGuide.contactInfo}</p>
                   </div>
                 )}
                 <p>
-                  <strong>Address:</strong>{" "}
-                  {selectedEvent.address
-                    ? `${selectedEvent.address.street}, ${selectedEvent.address.city}, ${selectedEvent.address.state} ${selectedEvent.address.zipCode}, ${selectedEvent.address.country}`
-                    : "N/A"}
+                  <strong>Created:</strong> {new Date(selectedGuide.createdAt).toLocaleString()}
                 </p>
                 <p>
-                  <strong>Start Date:</strong>{" "}
-                  {selectedEvent.schedule?.from
-                    ? new Date(selectedEvent.schedule.from).toLocaleString()
-                    : "N/A"}
-                </p>
-                <p>
-                  <strong>End Date:</strong>{" "}
-                  {selectedEvent.schedule?.to
-                    ? new Date(selectedEvent.schedule.to).toLocaleString()
-                    : "N/A"}
-                </p>
-                <p>
-                  <strong>Location:</strong>{" "}
-                  {selectedEvent.location?.coordinates
-                    ? `Lat: ${selectedEvent.location.coordinates[1]}, Lng: ${selectedEvent.location.coordinates[0]}`
-                    : "N/A"}
+                  <strong>Updated:</strong> {new Date(selectedGuide.updatedAt).toLocaleString()}
                 </p>
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                  <label className="block text-sm">Title</label>
+                  <label className="block text-sm">Name</label>
                   <input
-                    name="title"
-                    value={formData.title || ""}
+                    name="name"
+                    value={formData.name || ""}
                     onChange={handleChange}
                     className="w-full bg-gray-700 border border-gray-600 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                     required
                   />
                 </div>
+
                 <div>
-                  <label className="block text-sm">Description</label>
-                  <textarea
-                    name="description"
-                    value={formData.description || ""}
+                  <label className="block text-sm">Phone</label>
+                  <input
+                    name="phone"
+                    value={formData.phone || ""}
                     onChange={handleChange}
                     className="w-full bg-gray-700 border border-gray-600 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    rows={3}
+                    required
                   />
                 </div>
+
+                <div>
+                  <label className="block text-sm">Gender</label>
+                  <select
+                    name="gender"
+                    value={formData.gender || "male"}
+                    onChange={handleChange}
+                    className="w-full bg-gray-700 border border-gray-600 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  >
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+
                 <div>
                   <label className="block text-sm font-semibold mb-2">Address</label>
                   <div className="space-y-2">
@@ -455,82 +449,28 @@ export default function EventsPage() {
                     />
                   </div>
                 </div>
+
                 <div>
-                  <label className="block text-sm font-semibold mb-2">Schedule</label>
-                  <div className="space-y-2">
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1">Start Date & Time</label>
-                      <input
-                        type="datetime-local"
-                        name="schedule.from"
-                        value={
-                          formData.schedule?.from
-                            ? new Date(formData.schedule.from).toISOString().slice(0, 16)
-                            : ""
-                        }
-                        onChange={handleChange}
-                        className="w-full bg-gray-700 border border-gray-600 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1">End Date & Time</label>
-                      <input
-                        type="datetime-local"
-                        name="schedule.to"
-                        value={
-                          formData.schedule?.to
-                            ? new Date(formData.schedule.to).toISOString().slice(0, 16)
-                            : ""
-                        }
-                        onChange={handleChange}
-                        className="w-full bg-gray-700 border border-gray-600 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                        required
-                      />
-                    </div>
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold mb-2">Location Coordinates</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1">Longitude</label>
-                      <input
-                        type="number"
-                        step="any"
-                        name="location.coordinates.0"
-                        value={formData.location?.coordinates?.[0] || ""}
-                        onChange={handleChange}
-                        className="w-full bg-gray-700 border border-gray-600 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                        placeholder="Longitude"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1">Latitude</label>
-                      <input
-                        type="number"
-                        step="any"
-                        name="location.coordinates.1"
-                        value={formData.location?.coordinates?.[1] || ""}
-                        onChange={handleChange}
-                        className="w-full bg-gray-700 border border-gray-600 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                        placeholder="Latitude"
-                        required
-                      />
-                    </div>
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm">Image URL</label>
+                  <label className="block text-sm">Languages (comma-separated)</label>
                   <input
-                    type="text"
-                    name="image"
-                    value={formData.image || ""}
+                    name="languagesInput"
+                    value={formData.languagesInput || ""}
+                    onChange={handleLanguagesChange}
+                    placeholder="e.g., Tamil, English, Sinhala"
+                    className="w-full bg-gray-700 border border-gray-600 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm">Contact Info</label>
+                  <input
+                    name="contactInfo"
+                    value={formData.contactInfo || ""}
                     onChange={handleChange}
                     onDoubleClick={openMediaModal}
-                    className="w-full bg-gray-700 border border-gray-600 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent cursor-pointer"
                     placeholder="Double-click to select from media library"
+                    className="w-full bg-gray-700 border border-gray-600 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent cursor-pointer"
                   />
                 </div>
 
@@ -546,7 +486,7 @@ export default function EventsPage() {
                     type="submit"
                     className="px-4 py-2 bg-indigo-600 rounded-lg hover:bg-indigo-500 transition-colors"
                   >
-                    {modalMode === "add" ? "Create Event" : "Update Event"}
+                    {modalMode === "add" ? "Create Guide" : "Update Guide"}
                   </button>
                 </div>
               </form>

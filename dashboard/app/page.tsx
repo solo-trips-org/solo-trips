@@ -30,6 +30,8 @@ export default function DashboardPage() {
   const pathname = usePathname();
   const [pageInfo, setPageInfo] = useState({ title: "", subtitle: "" });
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const menuItems = [
     {
@@ -51,6 +53,8 @@ export default function DashboardPage() {
   useEffect(() => {
     async function fetchAnalytics() {
       try {
+        setLoading(true);
+        setError(null);
         const token = localStorage.getItem('token');
         const res = await fetch("https://trips-api.tselven.com/api/analytics", {
           headers: {
@@ -62,16 +66,19 @@ export default function DashboardPage() {
         setAnalytics(data);
       } catch (error) {
         console.error("Error fetching analytics:", error);
+        setError(error instanceof Error ? error.message : "Failed to load analytics");
+      } finally {
+        setLoading(false);
       }
     }
     fetchAnalytics();
   }, []);
 
-  const cards = analytics ? [
-    { title: "Total Users", url: "/users", value: analytics.totals.users, recent: analytics.recent.newUsers },
-    { title: "Total Places", url: "/places", value: analytics.totals.places, recent: analytics.recent.newPlaces },
-    { title: "Total Hotels", url: "/hotels", value: analytics.totals.hotels, recent: analytics.recent.newHotels },
-    { title: "Total Events", url: "/events", value: analytics.totals.events, recent: analytics.recent.newEvents },
+  const cards = analytics?.totals && analytics?.recent ? [
+    { title: "Total Users", url: "/users", value: analytics.totals.users ?? 0, recent: analytics.recent.newUsers ?? 0 },
+    { title: "Total Places", url: "/places", value: analytics.totals.places ?? 0, recent: analytics.recent.newPlaces ?? 0 },
+    { title: "Total Hotels", url: "/hotels&restaurants", value: analytics.totals.hotels ?? 0, recent: analytics.recent.newHotels ?? 0 },
+    { title: "Total Events", url: "/events", value: analytics.totals.events ?? 0, recent: analytics.recent.newEvents ?? 0 },
   ] : [];
 
   return (
@@ -83,21 +90,31 @@ export default function DashboardPage() {
       </header>
 
       {/* Dashboard Content */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {cards.map((card, idx) => (
-          <Link key={idx} href={card.url} className="block">
-            <div
-              className="bg-white p-6 rounded-2xl shadow-md 
-                transition-transform duration-300 ease-in-out
-                hover:scale-105 hover:shadow-[0_10px_20px_rgba(128,0,255,0.6)] cursor-pointer"
-            >
-              <h2 className="text-lg font-semibold text-gray-700">{card.title}</h2>
-              <p className="text-3xl font-bold text-purple-600">{card.value}</p>
-              <p className="text-sm text-gray-500">+{card.recent} new this week</p>
-            </div>
-          </Link>
-        ))}
-      </div>
+      {loading && (
+        <div className="flex items-center justify-center py-12">
+          <div className="text-gray-400">Loading analytics...</div>
+        </div>
+      )}
+      {error && (
+        <div className="bg-red-500/20 border border-red-500 rounded-lg p-4 mb-6">
+          <p className="text-red-300">Error: {error}</p>
+        </div>
+      )}
+      {!loading && !error && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {cards.map((card, idx) => (
+            <Link key={idx} href={card.url} className="block">
+              <div
+                className="bg-white p-6 rounded-2xl shadow-md transition-transform duration-300 ease-in-out hover:scale-105 hover:shadow-[0_10px_20px_rgba(128,0,255,0.6)] cursor-pointer"
+              >
+                <h2 className="text-lg font-semibold text-gray-700">{card.title}</h2>
+                <p className="text-3xl font-bold text-purple-600">{card.value}</p>
+                <p className="text-sm text-gray-500">+{card.recent} new this week</p>
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
