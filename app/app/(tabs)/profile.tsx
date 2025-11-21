@@ -5,7 +5,6 @@ import {
   StyleSheet,
   Image,
   ScrollView,
-  SafeAreaView,
   ActivityIndicator,
   Alert,
   TouchableOpacity,
@@ -200,14 +199,43 @@ export default function ProfileScreen() {
     }
   };
 
-  // Compress & upload
+  // Compress & upload with better size management
   const compressAndUpload = async (imageAsset: ImagePicker.ImagePickerAsset) => {
     try {
+      // Compress to max 600px width for smaller base64 size
+      const maxWidth = 600;
+      const resizeWidth = imageAsset.width > maxWidth ? maxWidth : imageAsset.width;
+      
+      console.log(`🔧 Compressing image from ${imageAsset.width}px to ${resizeWidth}px`);
+      
       const manipResult = await ImageManipulator.manipulateAsync(
         imageAsset.uri,
-        [{ resize: { width: imageAsset.width * 0.5 } }],
-        { compress: 0.5, format: ImageManipulator.SaveFormat.JPEG }
+        [{ resize: { width: resizeWidth } }],
+        { 
+          compress: 0.6, // Good balance of quality and size
+          format: ImageManipulator.SaveFormat.JPEG 
+        }
       );
+      
+      // Check compressed file size
+      const fileInfo = await FileSystem.getInfoAsync(manipResult.uri);
+      
+      if (fileInfo.exists && 'size' in fileInfo) {
+        console.log(`📊 Compressed file size: ${(fileInfo.size / 1024).toFixed(2)} KB`);
+        
+        // If still too large (>200KB), compress more aggressively
+        if (fileInfo.size > 200 * 1024) {
+          console.log('⚠️ File still too large, compressing more...');
+          const secondCompression = await ImageManipulator.manipulateAsync(
+            manipResult.uri,
+            [{ resize: { width: 400 } }],
+            { compress: 0.4, format: ImageManipulator.SaveFormat.JPEG }
+          );
+          await uploadImage({ ...imageAsset, uri: secondCompression.uri });
+          return;
+        }
+      }
+      
       await uploadImage({ ...imageAsset, uri: manipResult.uri });
     } catch (err) {
       console.error("❌ Compression failed:", err);
@@ -215,6 +243,7 @@ export default function ProfileScreen() {
     }
   };
 
+  // Upload image - Try base64 approach if FormData fails
   const uploadImage = async (imageAsset: ImagePicker.ImagePickerAsset) => {
     try {
       setImageUploading(true);
@@ -224,42 +253,167 @@ export default function ProfileScreen() {
         return;
       }
 
-      const formData = new FormData();
       const fileInfo = await FileSystem.getInfoAsync(imageAsset.uri);
-      if (!fileInfo.exists) throw new Error('File does not exist');
+      
+      console.log('📸 File Info:', fileInfo);
+      
+      if (!fileInfo.exists) {
+        throw new Error('File does not exist');
+      }
 
-      formData.append('profile', {
-        uri: imageAsset.uri,
-        type: 'image/jpeg',
-        name: 'profile.jpg',
-      } as any);
+      // Try Method 1: FormData (original approach)
+      console.log('📤 Attempting FormData upload...');
+      const formDataSuccess = await tryFormDataUpload(imageAsset.uri, token);
+      
+      if (formDataSuccess) {
+        return; // Success!
+      }
+
+      // Try Method 2: Base64 JSON upload (fallback)
+      console.log('📤 Attempting Base64 upload as fallback...');
+      await tryBase64Upload(imageAsset.uri, token);
+
+    } catch (error: any) {
+      console.error("⚠️ Detailed upload error:", error);
+      
+      let errorMessage = 'Failed to upload image. Please try again.';
+      
+      if (error.message) {
+        errorMessage = error.message;
+      } else if (error.toString().includes('Network request failed')) {
+        errorMessage = 'Network error. Please check your connection.';
+      }
+      
+      Alert.alert('Upload Error', errorMessage);
+    } finally {
+      setImageUploading(false);
+      setShowImageOptions(false);
+    }
+  };
+
+  // Method 1: FormData upload
+  const tryFormDataUpload = async (uri: string, token: string): Promise<boolean> => {
+    try {
+      const uriParts = uri.split('.');
+      const fileType = uriParts[uriParts.length - 1].toLowerCase();
+      
+      const validTypes = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+      const finalFileType = validTypes.includes(fileType) ? fileType : 'jpg';
+
+      let fileUri = uri;
+      if (Platform.OS === 'ios' && fileUri.startsWith('file://')) {
+        fileUri = fileUri.substring(7);
+      }
+
+      const fileToUpload = {
+        uri: fileUri,
+        type: `image/${finalFileType === 'jpg' ? 'jpeg' : finalFileType}`,
+        name: `profile_${Date.now()}.${finalFileType}`,
+      };
+
+      console.log('📦 FormData file:', fileToUpload);
+
+      const formData = new FormData();
+      formData.append('profile', fileToUpload as any);
 
       const response = await fetch(API_URL, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Content-Type': 'multipart/form-data',
         },
         body: formData,
       });
 
+      console.log('📥 FormData Response status:', response.status);
+      const responseText = await response.text();
+      console.log('📄 FormData Raw response:', responseText);
+
       if (!response.ok) {
-        const errorText = await response.text();
-        console.log("❌ Image upload error:", errorText);
-        throw new Error(`Upload failed: ${response.status}`);
+        return false; // Failed, will try base64
       }
 
-      const result = await response.json();
-      const newImageUrl = result.profile || result.imageUrl || result.url;
-      if (newImageUrl) setAvatar(newImageUrl);
-
-      Alert.alert('Success', 'Profile image updated successfully');
+      const result = JSON.parse(responseText);
+      const newImageUrl = 
+        result.profile || 
+        result.user?.profile || 
+        result.imageUrl || 
+        result.url || 
+        result.data?.profile ||
+        result.data?.url;
+      
+      if (newImageUrl) {
+        setAvatar(newImageUrl);
+        Alert.alert('Success', 'Profile image updated successfully');
+        return true;
+      }
+      
+      return false;
     } catch (error) {
-      console.error("⚠️ Image upload failed:", error);
-      Alert.alert('Error', 'Failed to upload image. Please try again.');
-    } finally {
-      setImageUploading(false);
-      setShowImageOptions(false);
+      console.log('⚠️ FormData upload failed:', error);
+      return false;
+    }
+  };
+
+  // Method 2: Base64 JSON upload
+  const tryBase64Upload = async (uri: string, token: string): Promise<void> => {
+    console.log('🔄 Converting to base64...');
+    
+    const base64 = await FileSystem.readAsStringAsync(uri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+
+    const response = await fetch(API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        profile: `data:image/jpeg;base64,${base64}`,
+      }),
+    });
+
+    console.log('📥 Base64 Response status:', response.status);
+    const responseText = await response.text();
+    console.log('📄 Base64 Raw response:', responseText);
+
+    if (!response.ok) {
+      let errorMessage = 'Upload failed';
+      try {
+        const errorJson = JSON.parse(responseText);
+        errorMessage = errorJson.message || errorJson.error || errorMessage;
+      } catch (e) {
+        errorMessage = responseText || errorMessage;
+      }
+      
+      if (response.status === 500) {
+        throw new Error('Server error. Please contact support or check backend logs.');
+      } else if (response.status === 413) {
+        throw new Error('Image is too large. Please choose a smaller image.');
+      } else if (response.status === 401) {
+        throw new Error('Authentication failed. Please login again.');
+      } else {
+        throw new Error(errorMessage);
+      }
+    }
+
+    const result = JSON.parse(responseText);
+    console.log('✅ Base64 Parsed result:', result);
+    
+    const newImageUrl = 
+      result.profile || 
+      result.user?.profile || 
+      result.imageUrl || 
+      result.url || 
+      result.data?.profile ||
+      result.data?.url;
+    
+    if (newImageUrl) {
+      setAvatar(newImageUrl);
+      Alert.alert('Success', 'Profile image updated successfully (base64)');
+    } else {
+      console.warn('⚠️ No image URL found in response:', result);
+      Alert.alert('Warning', 'Image uploaded but could not retrieve the URL');
     }
   };
 
@@ -273,13 +427,10 @@ export default function ProfileScreen() {
     );
   }
 
- 
-// ...styles remain unchanged
-
   return (
     <SafeArea>
       <StatusBar barStyle="light-content" />
-      <LinearGradient  colors={['#3A0751', "#7C3AED", '#3A0751']} style={styles.container}>
+      <LinearGradient colors={['#3A0751', "#7C3AED", '#3A0751']} style={styles.container}>
         <ScrollView 
           contentContainerStyle={styles.scrollContainer}
           showsVerticalScrollIndicator={false}
@@ -310,8 +461,6 @@ export default function ProfileScreen() {
               <Text style={styles.userName}>{firstName || username}</Text>
               <Text style={styles.userHandle}>@{username}</Text>
             </View>
-
-         
 
             {/* Info Cards */}
             <View style={styles.infoContainer}>
@@ -568,32 +717,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#74b9ff',
     fontWeight: '500',
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: 40,
-    paddingVertical: 20,
-    marginBottom: 20,
-  },
-  statItem: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  statNumber: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#2d3436',
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 14,
-    color: '#636e72',
-    fontWeight: '500',
-  },
-  statDivider: {
-    width: 1,
-    backgroundColor: '#ddd',
-    marginHorizontal: 20,
   },
   infoContainer: {
     paddingHorizontal: 20,

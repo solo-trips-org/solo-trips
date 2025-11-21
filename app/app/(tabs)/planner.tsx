@@ -13,7 +13,6 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { FontAwesome5 } from "@expo/vector-icons";
-import { Picker } from "@react-native-picker/picker";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -23,12 +22,23 @@ import HistoryDrawer from "@/app/HistoryDrawer";
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const API_BASE_URL = "https://trips-api.tselven.com/api";
 
+// Transport modes with capacity limits
+const TRANSPORT_MODES = [
+  { id: "bike", label: "Bike", icon: "motorcycle", capacity: { min: 1, max: 2, recommended: 1 } },
+  { id: "threewheeler", label: "Three-Wheeler", icon: "taxi", capacity: { min: 1, max: 3, recommended: 3 } },
+  { id: "car", label: "Car", icon: "car", capacity: { min: 1, max: 6, recommended: 4 } },
+  { id: "bus", label: "Bus", icon: "bus", capacity: { min: 7, max: 50, recommended: 15 } },
+];
+
 // ---------------------------
 // Types
 // ---------------------------
 interface Place {
   _id: string;
   name: string;
+  description?: string;
+  image?: string;
+  address?: any;
 }
 
 interface Event {
@@ -92,8 +102,6 @@ interface DayAgenda {
 interface TripData {
   success: boolean;
   days: DayAgenda[];
-  fromPlace?: string;
-  toPlace?: string;
   createdAt?: string;
 }
 
@@ -102,18 +110,19 @@ interface TripData {
 // ---------------------------
 export default function PlannerScreen() {
   const insets = useSafeAreaInsets();
-  const [startPlaceId, setStartPlaceId] = useState("");
-  const [endPlaceId, setEndPlaceId] = useState("");
+  const [wayPoints, setWayPoints] = useState<string[]>([]);
   const [members, setMembers] = useState("1");
+  const [transportMode, setTransportMode] = useState("car");
   const [places, setPlaces] = useState<Place[]>([]);
-  const [events, setEvents] = useState<Event[]>([]);
-  const [hotels, setHotels] = useState<Hotel[]>([]);
+  const [filteredPlaces, setFilteredPlaces] = useState<Place[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showSearchResults, setShowSearchResults] = useState(false);
   const [placesLoading, setPlacesLoading] = useState(false);
   const [tripResults, setTripResults] = useState<TripData | null>(null);
   const [loading, setLoading] = useState(false);
 
   const [startDate, setStartDate] = useState(startOfDay(new Date()));
-  const [endDate, setEndDate] = useState(startOfDay(new Date(Date.now() + 2 * 86400000)));
+  const [endDate, setEndDate] = useState(startOfDay(new Date(Date.now() + 86400000)));
 
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [showEndPicker, setShowEndPicker] = useState(false);
@@ -132,6 +141,9 @@ export default function PlannerScreen() {
   const getPlaceName = (placeId: string) =>
     places.find((p) => p._id === placeId)?.name || placeId;
 
+  const getPlaceDetails = (placeId: string) =>
+    places.find((p) => p._id === placeId);
+
   const calculateDays = () => {
     const start = startOfDay(startDate);
     const end = startOfDay(endDate);
@@ -140,16 +152,60 @@ export default function PlannerScreen() {
     return Math.max(1, diffDays);
   };
 
+  // Get capacity info for current transport mode
+  const getCurrentCapacity = () => {
+    return TRANSPORT_MODES.find(m => m.id === transportMode)?.capacity || { min: 1, max: 50, recommended: 4 };
+  };
+
+  // Auto-suggest transport based on number of travelers
+  useEffect(() => {
+    const count = parseInt(members, 10);
+    if (count && count > 0) {
+      if (count === 1) {
+        setTransportMode("bike");
+      } else if (count >= 2 && count <= 3) {
+        setTransportMode("threewheeler");
+      } else if (count >= 4 && count <= 6) {
+        setTransportMode("car");
+      } else if (count >= 7) {
+        setTransportMode("bus");
+      }
+    }
+  }, [members]);
+
+  // Update traveler count when transport mode changes
+  const handleTransportChange = (newMode: string) => {
+    const selectedTransport = TRANSPORT_MODES.find(m => m.id === newMode);
+    if (selectedTransport) {
+      setTransportMode(newMode);
+      // Set to recommended capacity for that transport
+      setMembers(String(selectedTransport.capacity.recommended));
+    }
+  };
+
+  // Validate traveler count against transport capacity
+  const handleMembersChange = (text: string) => {
+    const numericValue = text.replace(/[^0-9]/g, "");
+    const count = parseInt(numericValue, 10);
+    const capacity = getCurrentCapacity();
+
+    if (count > capacity.max) {
+      Alert.alert(
+        "Capacity Exceeded",
+        `${TRANSPORT_MODES.find(m => m.id === transportMode)?.label} can accommodate maximum ${capacity.max} travelers. Please choose a different transport mode for larger groups.`
+      );
+      setMembers(String(capacity.max));
+    } else {
+      setMembers(numericValue);
+    }
+  };
+
   // ---------------------------
   // Fetch Data
   // ---------------------------
   useEffect(() => {
-    fetchAllData();
+    fetchPlaces();
   }, []);
-
-  const fetchAllData = async () => {
-    await Promise.all([fetchPlaces(), fetchEvents(), fetchHotels()]);
-  };
 
   const fetchPlaces = async () => {
     try {
@@ -166,51 +222,49 @@ export default function PlannerScreen() {
       if (!res.ok) throw new Error("Failed to fetch places");
 
       const data = await res.json();
-      setPlaces(Array.isArray(data.data) ? data.data : []);
+      const placesData = Array.isArray(data.data) ? data.data : [];
+      setPlaces(placesData);
+      setFilteredPlaces(placesData);
     } catch (err) {
       console.error(err);
       Alert.alert("Error", "Failed to load places.");
       setPlaces([]);
+      setFilteredPlaces([]);
     } finally {
       setPlacesLoading(false);
     }
   };
 
-  const fetchEvents = async () => {
-    try {
-      const token = await AsyncStorage.getItem("authToken");
-      if (!token) return;
-
-      const res = await fetch(`${API_BASE_URL}/events`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error("Failed to fetch events");
-
-      const data = await res.json();
-      setEvents(Array.isArray(data.data) ? data.data : []);
-    } catch (err) {
-      console.error("Failed to load events", err);
-      setEvents([]);
+  // ---------------------------
+  // Search functionality
+  // ---------------------------
+  const handleSearchChange = (text: string) => {
+    setSearchQuery(text);
+    if (text.trim() === "") {
+      setFilteredPlaces(places);
+      setShowSearchResults(false);
+    } else {
+      const filtered = places.filter((place) =>
+        place.name.toLowerCase().includes(text.toLowerCase())
+      );
+      setFilteredPlaces(filtered);
+      setShowSearchResults(true);
     }
   };
 
-  const fetchHotels = async () => {
-    try {
-      const token = await AsyncStorage.getItem("authToken");
-      if (!token) return;
-
-      const res = await fetch(`${API_BASE_URL}/hotels`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error("Failed to fetch hotels");
-
-      const data = await res.json();
-      console.log("Hotels API Response:", data);
-      setHotels(Array.isArray(data.data) ? data.data : []);
-    } catch (err) {
-      console.error("Failed to load hotels", err);
-      setHotels([]);
+  const handleAddWaypoint = (placeId: string) => {
+    if (!wayPoints.includes(placeId)) {
+      setWayPoints([...wayPoints, placeId]);
+      setSearchQuery("");
+      setShowSearchResults(false);
+      setFilteredPlaces(places);
+    } else {
+      Alert.alert("Already Added", "This place is already in your waypoints.");
     }
+  };
+
+  const handleRemoveWaypoint = (placeId: string) => {
+    setWayPoints(wayPoints.filter((id) => id !== placeId));
   };
 
   // ---------------------------
@@ -230,9 +284,10 @@ export default function PlannerScreen() {
         body: JSON.stringify({
           plan: {
             inputs: {
-              fromPlace: startPlaceId,
-              toPlace: endPlaceId,
+              wayPoints: wayPoints,
               personCount: parseInt(members, 10),
+              transportMode: transportMode,
+              daysOfTrip: calculateDays(),
               startTimestamp: startDate.toISOString(),
               endTimestamp: endDate.toISOString(),
             },
@@ -249,12 +304,8 @@ export default function PlannerScreen() {
   // Generate Trip Plan
   // ---------------------------
   const handleGeneratePlan = async () => {
-    if (!startPlaceId || !endPlaceId) {
-      Alert.alert("Validation", "Please select both start and end places.");
-      return;
-    }
-    if (startPlaceId === endPlaceId) {
-      Alert.alert("Validation", "Start and end place cannot be the same.");
+    if (wayPoints.length < 2) {
+      Alert.alert("Validation", "Please add at least 2 places to create a trip.");
       return;
     }
 
@@ -264,14 +315,21 @@ export default function PlannerScreen() {
       return;
     }
 
+    const capacity = getCurrentCapacity();
+    if (personCount > capacity.max) {
+      Alert.alert("Validation", `${TRANSPORT_MODES.find(m => m.id === transportMode)?.label} capacity is ${capacity.max} travelers.`);
+      return;
+    }
+
     const numDays = calculateDays();
     console.log("=== PLAN GENERATION DEBUG ===");
     console.log("Start Date:", startDate.toISOString());
     console.log("End Date:", endDate.toISOString());
     console.log("Calculated Days:", numDays);
-    console.log("Start Place:", startPlaceId, getPlaceName(startPlaceId));
-    console.log("End Place:", endPlaceId, getPlaceName(endPlaceId));
-  
+    console.log("Transport Mode:", transportMode);
+    console.log("Travelers:", personCount);
+    console.log("Waypoints:", wayPoints.map(id => getPlaceName(id)));
+
     if (numDays < 1) {
       Alert.alert("Validation", "Trip must be at least 1 day.");
       return;
@@ -283,10 +341,16 @@ export default function PlannerScreen() {
       return;
     }
 
+    const fromPlace = wayPoints[0];
+    const toPlace = wayPoints[wayPoints.length - 1];
+    const middleWayPoints = wayPoints.slice(1, -1);
+
     const payload = {
-      fromPlace: startPlaceId,
-      toPlace: endPlaceId,
+      fromPlace,
+      toPlace,
+      wayPoints: middleWayPoints,
       personCount,
+      transportMode,
       daysOfTrip: numDays,
       startTimestamp: startDate.toISOString(),
       endTimestamp: endDate.toISOString(),
@@ -302,12 +366,11 @@ export default function PlannerScreen() {
 
       if (!res.ok) throw new Error("Failed to generate trip plan");
       const data: TripData = await res.json();
-    
+
       console.log("API Response:", JSON.stringify(data, null, 2));
-    
+
       if (!data.success) throw new Error("Trip generation failed");
 
-      // Check if API returned correct number of days
       if (!data.days || data.days.length === 0) {
         throw new Error("No trip data returned from API");
       }
@@ -315,19 +378,9 @@ export default function PlannerScreen() {
       console.log("Days returned from API:", data.days.length);
       console.log("Expected days:", numDays);
 
-      const tripWithNames = {
-        ...data,
-        fromPlace: getPlaceName(startPlaceId),
-        toPlace: getPlaceName(endPlaceId),
-      };
+      setTripResults(data);
+      await saveHistory(data);
 
-      console.log("Trip Data:", JSON.stringify(tripWithNames, null, 2));
-    
-      setTripResults(tripWithNames);
-
-      // Save to history
-      await saveHistory(tripWithNames);
-      
       Alert.alert("Success", `${data.days.length}-day trip plan generated successfully!`);
     } catch (err) {
       console.error("Error generating plan:", err);
@@ -339,9 +392,9 @@ export default function PlannerScreen() {
 
   const handleClearResults = () => {
     setTripResults(null);
-    setStartPlaceId("");
-    setEndPlaceId("");
+    setWayPoints([]);
     setMembers("1");
+    setTransportMode("car");
     setStartDate(startOfDay(new Date()));
     setEndDate(startOfDay(new Date(Date.now() + 86400000)));
   };
@@ -381,7 +434,7 @@ export default function PlannerScreen() {
           {/* Header */}
           <View style={styles.header}>
             <Text style={styles.headerTitle}>Trip Planner</Text>
-            <Text style={styles.headerSubtitle}>Plan your perfect journey</Text>
+            <Text style={styles.headerSubtitle}>Search & add places to your journey</Text>
 
             <TouchableOpacity style={styles.historyIcon} onPress={() => setHistoryVisible(true)}>
               <FontAwesome5 name="history" size={24} color="#fff" />
@@ -392,40 +445,138 @@ export default function PlannerScreen() {
           <View style={styles.card}>
             <Text style={styles.sectionTitle}>Trip Details</Text>
 
-            <Text style={styles.label}>Start Place *</Text>
-            {placesLoading ? (
-              <ActivityIndicator color="#a78bfa" />
-            ) : (
-              <View style={styles.pickerBox}>
-                <Picker selectedValue={startPlaceId} onValueChange={setStartPlaceId} style={styles.picker}>
-                  <Picker.Item label="-- Select Start Place --" value="" color="#8b7aa8" />
-                  {places.map((p) => (
-                    <Picker.Item key={p._id} label={p.name} value={p._id} />
+            {/* Place Search */}
+            <Text style={styles.label}>Search & Add Places *</Text>
+            <View style={styles.searchContainer}>
+              <FontAwesome5 name="search" size={16} color="#a78bfa" style={styles.searchIcon} />
+              <TextInput
+                style={styles.searchInput}
+                value={searchQuery}
+                onChangeText={handleSearchChange}
+                placeholder="Search places..."
+                placeholderTextColor="#8b7aa8"
+                onFocus={() => searchQuery && setShowSearchResults(true)}
+              />
+            </View>
+
+            {/* Search Results Dropdown */}
+            {showSearchResults && filteredPlaces.length > 0 && (
+              <View style={styles.searchResults}>
+                <ScrollView style={styles.searchResultsScroll} nestedScrollEnabled>
+                  {filteredPlaces.slice(0, 10).map((place) => (
+                    <TouchableOpacity
+                      key={place._id}
+                      style={styles.searchResultItem}
+                      onPress={() => handleAddWaypoint(place._id)}
+                    >
+                      {place.image && (
+                        <Image source={{ uri: place.image }} style={styles.searchResultImage} />
+                      )}
+                      <View style={styles.searchResultInfo}>
+                        <Text style={styles.searchResultName}>{place.name}</Text>
+                        {place.description && (
+                          <Text style={styles.searchResultDesc} numberOfLines={2}>
+                            {place.description}
+                          </Text>
+                        )}
+                      </View>
+                      <FontAwesome5 name="plus-circle" size={20} color="#a78bfa" />
+                    </TouchableOpacity>
                   ))}
-                </Picker>
+                </ScrollView>
               </View>
             )}
 
-            <Text style={styles.label}>End Place *</Text>
-            {placesLoading ? (
-              <ActivityIndicator color="#a78bfa" />
-            ) : (
-              <View style={styles.pickerBox}>
-                <Picker selectedValue={endPlaceId} onValueChange={setEndPlaceId} style={styles.picker}>
-                  <Picker.Item label="-- Select End Place --" value="" color="#8b7aa8" />
-                  {places.map((p) => (
-                    <Picker.Item key={p._id} label={p.name} value={p._id} />
-                  ))}
-                </Picker>
+            {/* Selected Waypoints */}
+            {wayPoints.length > 0 && (
+              <View style={styles.waypointsContainer}>
+                <Text style={styles.waypointsTitle}>
+                  Selected Places ({wayPoints.length})
+                </Text>
+                {wayPoints.map((placeId, index) => {
+                  const place = getPlaceDetails(placeId);
+                  return (
+                    <View key={placeId} style={styles.waypointItem}>
+                      <View style={styles.waypointNumber}>
+                        <Text style={styles.waypointNumberText}>{index + 1}</Text>
+                      </View>
+                      {place?.image && (
+                        <Image source={{ uri: place.image }} style={styles.waypointImage} />
+                      )}
+                      <View style={styles.waypointInfo}>
+                        <Text style={styles.waypointName}>{getPlaceName(placeId)}</Text>
+                        {index === 0 && <Text style={styles.waypointBadge}>Start</Text>}
+                        {index === wayPoints.length - 1 && (
+                          <Text style={styles.waypointBadge}>End</Text>
+                        )}
+                      </View>
+                      <TouchableOpacity onPress={() => handleRemoveWaypoint(placeId)}>
+                        <FontAwesome5 name="trash" size={16} color="#f87171" />
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })}
               </View>
             )}
 
+            {/* Transport Mode Selection - Now First */}
+            <Text style={styles.label}>Transportation Mode *</Text>
+            <View style={styles.transportHint}>
+              <FontAwesome5 name="info-circle" size={12} color="#a78bfa" />
+              <Text style={styles.transportHintText}>
+                Select your transport to auto-suggest traveler capacity
+              </Text>
+            </View>
+            <View style={styles.transportContainer}>
+              {TRANSPORT_MODES.map((mode) => (
+                <TouchableOpacity
+                  key={mode.id}
+                  style={[
+                    styles.transportOption,
+                    transportMode === mode.id && styles.transportOptionActive,
+                  ]}
+                  onPress={() => handleTransportChange(mode.id)}
+                >
+                  <FontAwesome5
+                    name={mode.icon}
+                    size={20}
+                    color={transportMode === mode.id ? "#fff" : "#a78bfa"}
+                  />
+                  <View style={styles.transportTextContainer}>
+                    <Text
+                      style={[
+                        styles.transportLabel,
+                        transportMode === mode.id && styles.transportLabelActive,
+                      ]}
+                    >
+                      {mode.label}
+                    </Text>
+                    <Text style={styles.capacityText}>
+                      {mode.capacity.max === 50 ? `${mode.capacity.min}+` : `${mode.capacity.min}-${mode.capacity.max}`} persons
+                    </Text>
+                  </View>
+                  {transportMode === mode.id && (
+                    <View style={styles.recommendedBadge}>
+                      <Text style={styles.recommendedText}>✓</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Number of Travelers - Now Second */}
             <Text style={styles.label}>Number of Travelers *</Text>
+            <View style={styles.capacityInfo}>
+              <FontAwesome5 name="users" size={14} color="#a78bfa" />
+              <Text style={styles.capacityInfoText}>
+                {TRANSPORT_MODES.find(m => m.id === transportMode)?.label} capacity: {getCurrentCapacity().min}-{getCurrentCapacity().max === 50 ? '50+' : getCurrentCapacity().max} travelers
+              </Text>
+            </View>
             <TextInput
               style={styles.inputBox}
               keyboardType="numeric"
               value={members}
-              onChangeText={(t) => setMembers(t.replace(/[^0-9]/g, ""))}
+              onChangeText={handleMembersChange}
               placeholder="Enter number of travelers"
               placeholderTextColor="#8b7aa8"
             />
@@ -456,11 +607,31 @@ export default function PlannerScreen() {
               </Text>
             </View>
 
-            {showStartPicker && <DateTimePicker value={startDate} mode="date" display="default" onChange={onChangeStart} minimumDate={new Date()} />}
-            {showEndPicker && <DateTimePicker value={endDate} mode="date" display="default" onChange={onChangeEnd} minimumDate={startDate} />}
+            {showStartPicker && (
+              <DateTimePicker
+                value={startDate}
+                mode="date"
+                display="default"
+                onChange={onChangeStart}
+                minimumDate={new Date()}
+              />
+            )}
+            {showEndPicker && (
+              <DateTimePicker
+                value={endDate}
+                mode="date"
+                display="default"
+                onChange={onChangeEnd}
+                minimumDate={startDate}
+              />
+            )}
 
             {/* Generate Button */}
-            <TouchableOpacity style={styles.generateBtn} onPress={handleGeneratePlan} disabled={loading || placesLoading}>
+            <TouchableOpacity
+              style={styles.generateBtn}
+              onPress={handleGeneratePlan}
+              disabled={loading || placesLoading || wayPoints.length < 2}
+            >
               <LinearGradient colors={["#a78bfa", "#8b5cf6", "#7c3aed"]} style={styles.gradientBtn}>
                 {loading ? (
                   <ActivityIndicator color="#fff" />
@@ -487,26 +658,30 @@ export default function PlannerScreen() {
                 Your {tripResults.days.length}-Day Trip Plan
               </Text>
               <Text style={styles.resultsSubtitle}>
-                {tripResults.fromPlace} → {tripResults.toPlace}
+                {wayPoints.length} places • {members} travelers • {TRANSPORT_MODES.find(m => m.id === transportMode)?.label}
               </Text>
 
               {tripResults.days.map((day, idx) => (
                 <View key={idx} style={styles.dayCard}>
                   <Text style={styles.dayTitle}>Day {day.day || idx + 1}</Text>
-                  
+
                   {/* Morning */}
                   {day.agenda.morning && (
                     <View style={styles.timeSlot}>
                       <Text style={styles.timeSlotTitle}>Morning</Text>
                       <View style={styles.placeCard}>
-                        {day.agenda.morning.place.image && <Image source={{ uri: day.agenda.morning.place.image }} style={styles.placeImage} />}
+                        {day.agenda.morning.place.image && (
+                          <Image
+                            source={{ uri: day.agenda.morning.place.image }}
+                            style={styles.placeImage}
+                          />
+                        )}
                         <View style={styles.placeInfo}>
                           <Text style={styles.placeName}>{day.agenda.morning.place.name}</Text>
                           <Text style={styles.placeDesc}>{day.agenda.morning.place.description}</Text>
                         </View>
                       </View>
 
-                      {/* Events for morning */}
                       {day.agenda.morning.events && day.agenda.morning.events.length > 0 && (
                         <View style={styles.subsection}>
                           <Text style={styles.subsectionTitle}>
@@ -514,17 +689,20 @@ export default function PlannerScreen() {
                           </Text>
                           {day.agenda.morning.events.map((event, ei) => (
                             <View key={ei} style={styles.subItem}>
-                              {event.image && <Image source={{ uri: event.image }} style={styles.subImage} />}
+                              {event.image && (
+                                <Image source={{ uri: event.image }} style={styles.subImage} />
+                              )}
                               <View style={{ flex: 1 }}>
                                 <Text style={styles.subName}>{event.title}</Text>
-                                {event.description && <Text style={styles.subDesc}>{event.description}</Text>}
+                                {event.description && (
+                                  <Text style={styles.subDesc}>{event.description}</Text>
+                                )}
                               </View>
                             </View>
                           ))}
                         </View>
                       )}
 
-                      {/* Hotel for morning */}
                       {day.agenda.morning.hotel && (
                         <View style={styles.subsection}>
                           <Text style={styles.subsectionTitle}>
@@ -532,16 +710,23 @@ export default function PlannerScreen() {
                           </Text>
                           <View style={styles.subItem}>
                             {day.agenda.morning.hotel.image && (
-                              <Image 
-                                source={{ uri: day.agenda.morning.hotel.image }} 
+                              <Image
+                                source={{ uri: day.agenda.morning.hotel.image }}
                                 style={styles.subImage}
-                                onError={(e) => console.log("Hotel image load error:", e.nativeEvent.error)}
                               />
                             )}
                             <View style={{ flex: 1 }}>
                               <Text style={styles.subName}>{day.agenda.morning.hotel.name}</Text>
-                              {day.agenda.morning.hotel.description && <Text style={styles.subDesc}>{day.agenda.morning.hotel.description}</Text>}
-                              {day.agenda.morning.hotel.priceRange && <Text style={styles.priceText}>{day.agenda.morning.hotel.priceRange}</Text>}
+                              {day.agenda.morning.hotel.description && (
+                                <Text style={styles.subDesc}>
+                                  {day.agenda.morning.hotel.description}
+                                </Text>
+                              )}
+                              {day.agenda.morning.hotel.priceRange && (
+                                <Text style={styles.priceText}>
+                                  {day.agenda.morning.hotel.priceRange}
+                                </Text>
+                              )}
                             </View>
                           </View>
                         </View>
@@ -554,14 +739,20 @@ export default function PlannerScreen() {
                     <View style={styles.timeSlot}>
                       <Text style={styles.timeSlotTitle}>Afternoon</Text>
                       <View style={styles.placeCard}>
-                        {day.agenda.afternoon.place.image && <Image source={{ uri: day.agenda.afternoon.place.image }} style={styles.placeImage} />}
+                        {day.agenda.afternoon.place.image && (
+                          <Image
+                            source={{ uri: day.agenda.afternoon.place.image }}
+                            style={styles.placeImage}
+                          />
+                        )}
                         <View style={styles.placeInfo}>
                           <Text style={styles.placeName}>{day.agenda.afternoon.place.name}</Text>
-                          <Text style={styles.placeDesc}>{day.agenda.afternoon.place.description}</Text>
+                          <Text style={styles.placeDesc}>
+                            {day.agenda.afternoon.place.description}
+                          </Text>
                         </View>
                       </View>
 
-                      {/* Events for afternoon */}
                       {day.agenda.afternoon.events && day.agenda.afternoon.events.length > 0 && (
                         <View style={styles.subsection}>
                           <Text style={styles.subsectionTitle}>
@@ -569,17 +760,20 @@ export default function PlannerScreen() {
                           </Text>
                           {day.agenda.afternoon.events.map((event, ei) => (
                             <View key={ei} style={styles.subItem}>
-                              {event.image && <Image source={{ uri: event.image }} style={styles.subImage} />}
+                              {event.image && (
+                                <Image source={{ uri: event.image }} style={styles.subImage} />
+                              )}
                               <View style={{ flex: 1 }}>
                                 <Text style={styles.subName}>{event.title}</Text>
-                                {event.description && <Text style={styles.subDesc}>{event.description}</Text>}
+                                {event.description && (
+                                  <Text style={styles.subDesc}>{event.description}</Text>
+                                )}
                               </View>
                             </View>
                           ))}
                         </View>
                       )}
 
-                      {/* Hotel for afternoon */}
                       {day.agenda.afternoon.hotel && (
                         <View style={styles.subsection}>
                           <Text style={styles.subsectionTitle}>
@@ -587,16 +781,23 @@ export default function PlannerScreen() {
                           </Text>
                           <View style={styles.subItem}>
                             {day.agenda.afternoon.hotel.image && (
-                              <Image 
-                                source={{ uri: day.agenda.afternoon.hotel.image }} 
+                              <Image
+                                source={{ uri: day.agenda.afternoon.hotel.image }}
                                 style={styles.subImage}
-                                onError={(e) => console.log("Hotel image load error:", e.nativeEvent.error)}
                               />
                             )}
                             <View style={{ flex: 1 }}>
                               <Text style={styles.subName}>{day.agenda.afternoon.hotel.name}</Text>
-                              {day.agenda.afternoon.hotel.description && <Text style={styles.subDesc}>{day.agenda.afternoon.hotel.description}</Text>}
-                              {day.agenda.afternoon.hotel.priceRange && <Text style={styles.priceText}>{day.agenda.afternoon.hotel.priceRange}</Text>}
+                              {day.agenda.afternoon.hotel.description && (
+                                <Text style={styles.subDesc}>
+                                  {day.agenda.afternoon.hotel.description}
+                                </Text>
+                              )}
+                              {day.agenda.afternoon.hotel.priceRange && (
+                                <Text style={styles.priceText}>
+                                  {day.agenda.afternoon.hotel.priceRange}
+                                </Text>
+                              )}
                             </View>
                           </View>
                         </View>
@@ -609,14 +810,18 @@ export default function PlannerScreen() {
                     <View style={styles.timeSlot}>
                       <Text style={styles.timeSlotTitle}>Evening</Text>
                       <View style={styles.placeCard}>
-                        {day.agenda.evening.place.image && <Image source={{ uri: day.agenda.evening.place.image }} style={styles.placeImage} />}
+                        {day.agenda.evening.place.image && (
+                          <Image
+                            source={{ uri: day.agenda.evening.place.image }}
+                            style={styles.placeImage}
+                          />
+                        )}
                         <View style={styles.placeInfo}>
                           <Text style={styles.placeName}>{day.agenda.evening.place.name}</Text>
                           <Text style={styles.placeDesc}>{day.agenda.evening.place.description}</Text>
                         </View>
                       </View>
 
-                      {/* Events for evening */}
                       {day.agenda.evening.events && day.agenda.evening.events.length > 0 && (
                         <View style={styles.subsection}>
                           <Text style={styles.subsectionTitle}>
@@ -624,17 +829,20 @@ export default function PlannerScreen() {
                           </Text>
                           {day.agenda.evening.events.map((event, ei) => (
                             <View key={ei} style={styles.subItem}>
-                              {event.image && <Image source={{ uri: event.image }} style={styles.subImage} />}
+                              {event.image && (
+                                <Image source={{ uri: event.image }} style={styles.subImage} />
+                              )}
                               <View style={{ flex: 1 }}>
                                 <Text style={styles.subName}>{event.title}</Text>
-                                {event.description && <Text style={styles.subDesc}>{event.description}</Text>}
+                                {event.description && (
+                                  <Text style={styles.subDesc}>{event.description}</Text>
+                                )}
                               </View>
                             </View>
                           ))}
                         </View>
                       )}
 
-                      {/* Hotel for evening */}
                       {day.agenda.evening.hotel && (
                         <View style={styles.subsection}>
                           <Text style={styles.subsectionTitle}>
@@ -642,16 +850,23 @@ export default function PlannerScreen() {
                           </Text>
                           <View style={styles.subItem}>
                             {day.agenda.evening.hotel.image && (
-                              <Image 
-                                source={{ uri: day.agenda.evening.hotel.image }} 
+                              <Image
+                                source={{ uri: day.agenda.evening.hotel.image }}
                                 style={styles.subImage}
-                                onError={(e) => console.log("Hotel image load error:", e.nativeEvent.error)}
                               />
                             )}
                             <View style={{ flex: 1 }}>
                               <Text style={styles.subName}>{day.agenda.evening.hotel.name}</Text>
-                              {day.agenda.evening.hotel.description && <Text style={styles.subDesc}>{day.agenda.evening.hotel.description}</Text>}
-                              {day.agenda.evening.hotel.priceRange && <Text style={styles.priceText}>{day.agenda.evening.hotel.priceRange}</Text>}
+                              {day.agenda.evening.hotel.description && (
+                                <Text style={styles.subDesc}>
+                                  {day.agenda.evening.hotel.description}
+                                </Text>
+                              )}
+                              {day.agenda.evening.hotel.priceRange && (
+                                <Text style={styles.priceText}>
+                                  {day.agenda.evening.hotel.priceRange}
+                                </Text>
+                              )}
                             </View>
                           </View>
                         </View>
@@ -670,21 +885,21 @@ export default function PlannerScreen() {
           onClose={() => setHistoryVisible(false)}
           onSelectTrip={(trip) => {
             console.log("Selected Trip from History:", JSON.stringify(trip, null, 2));
-            
-            // Populate Planner with saved trip inputs
-            setStartPlaceId(trip.plan.inputs.fromPlace);
-            setEndPlaceId(trip.plan.inputs.toPlace);
+
+            if (trip.plan.inputs.wayPoints) {
+              setWayPoints(trip.plan.inputs.wayPoints);
+            }
             setMembers(String(trip.plan.inputs.personCount || 1));
+            if (trip.plan.inputs.transportMode) {
+              setTransportMode(trip.plan.inputs.transportMode);
+            }
             setStartDate(new Date(trip.plan.inputs.startTimestamp));
             setEndDate(new Date(trip.plan.inputs.endTimestamp));
 
-            // Set saved trip results for display - CRITICAL FIX
             if (trip.plan.result && trip.plan.result.days) {
               setTripResults({
                 ...trip.plan.result,
                 success: true,
-                fromPlace: getPlaceName(trip.plan.inputs.fromPlace),
-                toPlace: getPlaceName(trip.plan.inputs.toPlace),
               });
             }
 
@@ -706,63 +921,365 @@ const styles = StyleSheet.create({
   headerSubtitle: { color: "#a78bfa", fontSize: 16 },
   historyIcon: { position: "absolute", right: 0, top: 10, padding: 8 },
 
-  card: { backgroundColor: "rgba(45,27,78,0.6)", borderRadius: 20, padding: 24, marginBottom: 24, borderWidth: 1, borderColor: "#6d28d9" },
-  sectionTitle: { color: "#fff", fontWeight: "700", marginBottom: 10, fontSize: 23, textAlign: "center" },
-  label: { color: "#fff", fontWeight: "600", marginBottom: 8, marginTop: 16, fontSize: 14 },
-  inputBox: { borderWidth: 1, borderColor: "#6d28d9", borderRadius: 12, padding: 16, color: "#fff", backgroundColor: "rgba(26,10,46,0.8)", marginBottom: 8, fontSize: 14 },
+  card: {
+    backgroundColor: "rgba(45,27,78,0.6)",
+    borderRadius: 20,
+    padding: 24,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: "#6d28d9",
+  },
+  sectionTitle: {
+    color: "#fff",
+    fontWeight: "700",
+    marginBottom: 10,
+    fontSize: 23,
+    textAlign: "center",
+  },
+  label: {
+    color: "#fff",
+    fontWeight: "600",
+    marginBottom: 8,
+    marginTop: 16,
+    fontSize: 14,
+  },
+  inputBox: {
+    borderWidth: 1,
+    borderColor: "#6d28d9",
+    borderRadius: 12,
+    padding: 16,
+    color: "#fff",
+    backgroundColor: "rgba(26,10,46,0.8)",
+    marginBottom: 8,
+    fontSize: 14,
+  },
 
-  pickerBox: { borderWidth: 1, borderColor: "#6d28d9", borderRadius: 12, marginBottom: 8, backgroundColor: "rgba(26,10,46,0.8)", overflow: "hidden" },
-  picker: { color: "#fff", height: 53 },
+  // Transport Mode Styles
+  transportContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginBottom: 8,
+  },
+  transportOption: {
+    flex: 1,
+    minWidth: "45%",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-start",
+    gap: 8,
+    padding: 12,
+    borderWidth: 2,
+    borderColor: "#6d28d9",
+    borderRadius: 12,
+    backgroundColor: "rgba(26,10,46,0.6)",
+    position: "relative",
+  },
+  transportOptionActive: {
+    backgroundColor: "#7c3aed",
+    borderColor: "#a78bfa",
+  },
+  transportTextContainer: {
+    flex: 1,
+  },
+  transportLabel: {
+    color: "#a78bfa",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  transportLabelActive: {
+    color: "#fff",
+  },
+  capacityText: {
+    color: "#8b7aa8",
+    fontSize: 10,
+    marginTop: 2,
+  },
+  transportHint: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "rgba(167,139,250,0.1)",
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  transportHintText: {
+    color: "#a78bfa",
+    fontSize: 12,
+    flex: 1,
+  },
+  recommendedBadge: {
+    position: "absolute",
+    top: -6,
+    right: -6,
+    backgroundColor: "#10b981",
+    borderRadius: 10,
+    width: 20,
+    height: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  recommendedText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  capacityInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "rgba(167,139,250,0.1)",
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  capacityInfoText: {
+    color: "#a78bfa",
+    fontSize: 12,
+    flex: 1,
+  },
 
-  dateInputBox: { flex: 1, flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: "#6d28d9", borderRadius: 12, padding: 12, backgroundColor: "rgba(26,10,46,0.8)", justifyContent: "center" },
+  // Search styles
+  searchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#6d28d9",
+    borderRadius: 12,
+    backgroundColor: "rgba(26,10,46,0.8)",
+    paddingHorizontal: 16,
+    marginBottom: 8,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    color: "#fff",
+    padding: 16,
+    fontSize: 14,
+  },
+  searchResults: {
+    maxHeight: 300,
+    backgroundColor: "rgba(26,10,46,0.95)",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#6d28d9",
+    marginBottom: 16,
+    overflow: "hidden",
+  },
+  searchResultsScroll: {
+    maxHeight: 300,
+  },
+  searchResultItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(109,40,217,0.3)",
+  },
+  searchResultImage: {
+    width: 50,
+    height: 50,
+    borderRadius: 8,
+    marginRight: 12,
+  },
+  searchResultInfo: {
+    flex: 1,
+  },
+  searchResultName: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
+    marginBottom: 2,
+  },
+  searchResultDesc: {
+    color: "#a78bfa",
+    fontSize: 11,
+  },
+
+  // Waypoints styles
+  waypointsContainer: {
+    backgroundColor: "rgba(167,139,250,0.1)",
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "rgba(167,139,250,0.3)",
+  },
+  waypointsTitle: {
+    color: "#a78bfa",
+    fontSize: 14,
+    fontWeight: "700",
+    marginBottom: 12,
+    textAlign: "center",
+  },
+  waypointItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(26,10,46,0.6)",
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "#6d28d9",
+  },
+  waypointNumber: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "#7c3aed",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 10,
+  },
+  waypointNumberText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  waypointImage: {
+    width: 45,
+    height: 45,
+    borderRadius: 8,
+    marginRight: 10,
+  },
+  waypointInfo: {
+    flex: 1,
+  },
+  waypointName: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  waypointBadge: {
+    color: "#a78bfa",
+    fontSize: 11,
+    fontWeight: "600",
+    marginTop: 2,
+  },
+
+  dateInputBox: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#6d28d9",
+    borderRadius: 12,
+    padding: 12,
+    backgroundColor: "rgba(26,10,46,0.8)",
+    justifyContent: "center",
+  },
   dateText: { color: "#fff", fontSize: 12 },
 
-  durationBox: { flexDirection: "row", alignItems: "center", justifyContent: "center", marginTop: 12, padding: 10, backgroundColor: "rgba(167,139,250,0.1)", borderRadius: 8, gap: 8 },
+  durationBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 12,
+    padding: 10,
+    backgroundColor: "rgba(167,139,250,0.1)",
+    borderRadius: 8,
+    gap: 8,
+  },
   durationText: { color: "#a78bfa", fontSize: 13, fontWeight: "600" },
 
   generateBtn: { marginTop: 24 },
-  gradientBtn: { flexDirection: "row", justifyContent: "center", alignItems: "center", padding: 16, borderRadius: 12 },
+  gradientBtn: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 16,
+    borderRadius: 12,
+  },
   generateText: { color: "#fff", fontWeight: "700" },
 
   clearBtn: { marginTop: 12, alignItems: "center" },
   clearText: { color: "#f87171", fontWeight: "600" },
 
-  resultsTitle: { color: "#fff", fontSize: 22, fontWeight: "700", marginBottom: 4, marginTop: 24, textAlign: "center" },
-  resultsSubtitle: { color: "#a78bfa", fontSize: 14, marginBottom: 16, textAlign: "center" },
-  
-  dayCard: { backgroundColor: "rgba(45,27,78,0.5)", borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: "#6d28d9" },
-  dayTitle: { color: "#fff", fontSize: 18, fontWeight: "700", marginBottom: 12, borderBottomWidth: 1, borderBottomColor: "#6d28d9", paddingBottom: 8 },
-  
-  placeCard: { flexDirection: "row", marginBottom: 12, borderRadius: 12, overflow: "hidden", backgroundColor: "rgba(0,0,0,0.3)" },
+  resultsTitle: {
+    color: "#fff",
+    fontSize: 22,
+    fontWeight: "700",
+    marginBottom: 4,
+    marginTop: 24,
+    textAlign: "center",
+  },
+  resultsSubtitle: {
+    color: "#a78bfa",
+    fontSize: 14,
+    marginBottom: 16,
+    textAlign: "center",
+  },
+
+  dayCard: {
+    backgroundColor: "rgba(45,27,78,0.5)",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#6d28d9",
+  },
+  dayTitle: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "700",
+    marginBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#6d28d9",
+    paddingBottom: 8,
+  },
+
+  placeCard: {
+    flexDirection: "row",
+    marginBottom: 12,
+    borderRadius: 12,
+    overflow: "hidden",
+    backgroundColor: "rgba(0,0,0,0.3)",
+  },
   placeImage: { width: 80, height: 80 },
   placeInfo: { flex: 1, padding: 8 },
   placeName: { color: "#fff", fontWeight: "700", fontSize: 14 },
   placeDesc: { color: "#d1d5db", fontSize: 12 },
 
-  subsection: { marginTop: 8, marginBottom: 12, backgroundColor: "rgba(167,139,250,0.05)", borderRadius: 10, padding: 12 },
+  subsection: {
+    marginTop: 8,
+    marginBottom: 12,
+    backgroundColor: "rgba(167,139,250,0.05)",
+    borderRadius: 10,
+    padding: 12,
+  },
   subsectionTitle: { color: "#a78bfa", fontSize: 13, fontWeight: "700", marginBottom: 8 },
-  subItem: { flexDirection: "row", backgroundColor: "rgba(0,0,0,0.2)", borderRadius: 8, padding: 8, marginBottom: 6 },
+  subItem: {
+    flexDirection: "row",
+    backgroundColor: "rgba(0,0,0,0.2)",
+    borderRadius: 8,
+    padding: 8,
+    marginBottom: 6,
+  },
   subImage: { width: 50, height: 50, borderRadius: 6, marginRight: 8 },
   subName: { color: "#fff", fontWeight: "600", fontSize: 13 },
   subDesc: { color: "#d1d5db", fontSize: 11, marginTop: 2 },
   priceText: { color: "#a78bfa", fontSize: 12, fontWeight: "700", marginTop: 4 },
 
-  timeSlot: { 
-    backgroundColor: "rgba(167,139,250,0.1)", 
-    borderRadius: 10, 
-    padding: 12, 
+  timeSlot: {
+    backgroundColor: "rgba(167,139,250,0.1)",
+    borderRadius: 10,
+    padding: 12,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "rgba(167,139,250,0.3)"
+    borderColor: "rgba(167,139,250,0.3)",
   },
-  timeSlotTitle: { 
-    color: "#a78bfa", 
-    fontSize: 16, 
-    fontWeight: "700", 
+  timeSlotTitle: {
+    color: "#a78bfa",
+    fontSize: 16,
+    fontWeight: "700",
     marginBottom: 8,
     textAlign: "center",
     borderBottomWidth: 1,
     borderBottomColor: "rgba(167,139,250,0.3)",
-    paddingBottom: 4
+    paddingBottom: 4,
   },
 });
