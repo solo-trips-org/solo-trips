@@ -48,7 +48,6 @@ import {
   getOneGlobalSetting,
   updateGlobalSetting,
 } from "./app/controllers/settings.controller.js";
-import { Hotel } from "./app/models/hotel.model.js";
 
 const router = Router();
 
@@ -63,12 +62,7 @@ router.post("/new-otp", newOTP);
 router.post("/forget-password", resetPasswordWithOTP);
 router.delete("/account", requireAuth, deleteAccount);
 
-<<<<<<< HEAD
-router.use("/places", requireAuth, allowedRoles("admin"), createCrud(Place));
-router.use("/events", requireAuth, allowedRoles("admin"), createCrud(Event));
-router.use("/guides", requireAuth, allowedRoles("admin"), createCrud(Guide));
-router.use("/hotels", requireAuth, allowedRoles("admin"), createCrud(Hotel));
-=======
+
 router.use("/places", requireAuth, createCrud(Place, {
   middlewares: {
     create: [allowedRoles("admin")],
@@ -97,7 +91,7 @@ router.use("/hotels", requireAuth, createCrud(Hotel, {
     remove: [allowedRoles("admin")]
   }
 }));
->>>>>>> 02dfd802fa9e6afab86dd5117110c60b963a559d
+
 router.use("/users", requireAuth, allowedRoles("admin"), createCrud(User));
 
 //----------------- NearBy Finding Routes ---------------------//
