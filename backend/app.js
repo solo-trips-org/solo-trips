@@ -9,20 +9,6 @@ const app = express();
 // Middleware & routes
 app.use(corsMiddleware);
 app.use(injectAuthContext);
-// app.use(cacheMiddleware({
-//   storeType: 'redis', // 'memory' | 'redis' | 'memcached'
-//   ttlSeconds: 120,    // Cache time-to-live in seconds
-//   prefix: '/api/',    // Only cache routes starting with '/api/'
-//   exclude: ['/api/auth'], // Exclude these route substrings from caching
-//   redisOptions: {
-//     username: process.env.REDIS_USER,
-//     password: process.env.REDIS_PASSWORD,
-//     socket: {
-//       host: process.env.REDIS_HOST,
-//       port: process.env.REDIS_PORT
-//     },
-//   }
-// }));
 
 app.use(express.json());
 app.use('/api', apiRoutes);

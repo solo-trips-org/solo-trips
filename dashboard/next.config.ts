@@ -2,8 +2,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Enable standalone output
+  output: "standalone",
+
   turbopack: {
-    root: __dirname, // correct way
+    root: __dirname,
   },
 };
 
