@@ -9,8 +9,11 @@ import {
   Dimensions,
   StatusBar,
   ActivityIndicator,
-  Alert
+  Alert,
+  Linking,
+  Platform
 } from "react-native";
+import Clipboard from '@react-native-clipboard/clipboard';
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams, Stack } from "expo-router";
@@ -31,6 +34,13 @@ type AddressType = {
   street?: string;
   city?: string;
   state?: string;
+  latitude?: number;
+  longitude?: number;
+};
+
+type LocationType = {
+  type?: string;
+  coordinates?: [number, number]; // [longitude, latitude]
 };
 
 export default function PlaceMoreDetails() {
@@ -49,16 +59,19 @@ export default function PlaceMoreDetails() {
     phone,
     gender,
     languages,
+    location
   } = useLocalSearchParams();
 
   const [placeDetails, setPlaceDetails] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Safely parse fees
   let parsedFees: FeesType = {};
   try {
     parsedFees = typeof fees === "string" ? JSON.parse(fees) : (fees as FeesType);
   } catch (e) {
+    console.log("⚠️ Could not parse fees:", e);
     parsedFees = {};
   }
 
@@ -67,7 +80,17 @@ export default function PlaceMoreDetails() {
   try {
     parsedAddress = typeof address === "string" ? JSON.parse(address) : (address as AddressType);
   } catch (e) {
+    console.log("⚠️ Could not parse address:", e);
     parsedAddress = {};
+  }
+
+  // Safely parse location
+  let parsedLocation: LocationType = {};
+  try {
+    parsedLocation = typeof location === "string" ? JSON.parse(location) : (location as LocationType);
+  } catch (e) {
+    console.log("⚠️ Could not parse location:", e);
+    parsedLocation = {};
   }
 
   // Detect if it's a Guide
@@ -95,8 +118,13 @@ export default function PlaceMoreDetails() {
     }
   }
 
-  const renderInfoCard = (icon: string, title: string, value: string, color = '#764ba2') => (
-    <View style={styles.infoCard}>
+  const renderInfoCard = (icon: string, title: string, value: string, color = '#764ba2', onPress?: () => void) => (
+    <TouchableOpacity 
+      style={styles.infoCard}
+      onPress={onPress}
+      activeOpacity={onPress ? 0.7 : 1}
+      disabled={!onPress}
+    >
       <View style={[styles.infoIconContainer, { backgroundColor: `${color}20` }]}>
         <Ionicons name={icon as any} size={20} color={color} />
       </View>
@@ -104,40 +132,104 @@ export default function PlaceMoreDetails() {
         <Text style={styles.infoLabel}>{title}</Text>
         <Text style={styles.infoValue}>{value}</Text>
       </View>
-    </View>
+      {onPress && (
+        <Ionicons name="chevron-forward" size={20} color={color} style={{ marginLeft: 8 }} />
+      )}
+    </TouchableOpacity>
   );
 
   // Fetch full place details including location data
   useEffect(() => {
     const fetchPlaceDetails = async () => {
       if (!id) {
+        console.log("⚠️ No ID provided");
         setLoading(false);
         return;
       }
 
       try {
+        console.log("📡 Fetching place details for ID:", id);
+        
         const token = await AsyncStorage.getItem("authToken");
         if (!token) {
-          Alert.alert("Error", "No auth token found. Please login again.");
-          router.push("/Login");
+          console.error("❌ No auth token found");
+          Alert.alert(
+            "Authentication Required",
+            "Please login to view place details.",
+            [
+              {
+                text: "OK",
+                onPress: () => router.push("/Login")
+              }
+            ]
+          );
           return;
         }
+
+        // Create abort controller for timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
 
         const response = await fetch(
           `https://trips-api.tselven.com/api/places/${id}`,
           {
-            headers: { Authorization: `Bearer ${token}` },
+            headers: { 
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            signal: controller.signal
           }
         );
 
+        clearTimeout(timeoutId);
+
+        console.log("📡 Response status:", response.status);
+
         if (!response.ok) {
-          throw new Error("Failed to fetch place details");
+          if (response.status === 401) {
+            throw new Error("Authentication failed. Please login again.");
+          } else if (response.status === 404) {
+            // Don't throw error for 404, just log it and continue with params data
+            console.log("⚠️ Place not found in database, using parameter data only");
+            setPlaceDetails(null);
+            setError(null);
+            setLoading(false);
+            return;
+          } else {
+            throw new Error(`Server error: ${response.status}`);
+          }
         }
 
         const data = await response.json();
+        console.log("✅ Place details fetched successfully");
+        console.log("📍 Location data:", data.location);
+        
         setPlaceDetails(data);
-      } catch (error) {
-        console.error("Error fetching place details:", error);
+        setError(null);
+      } catch (error: any) {
+        console.error("❌ Error fetching place details:", error.message);
+        
+        if (error.name === 'AbortError') {
+          console.log("⚠️ Request timeout, continuing with parameter data");
+          setPlaceDetails(null);
+          setError(null);
+        } else if (error.message.includes("Authentication")) {
+          Alert.alert(
+            "Session Expired",
+            "Your login session has expired. Please login again.",
+            [
+              {
+                text: "OK",
+                onPress: () => router.push("/Login")
+              }
+            ]
+          );
+        } else {
+          // For other errors, continue with parameter data
+          console.log("⚠️ Continuing with parameter data only");
+          setPlaceDetails(null);
+          setError(null);
+        }
       } finally {
         setLoading(false);
       }
@@ -146,33 +238,41 @@ export default function PlaceMoreDetails() {
     fetchPlaceDetails();
   }, [id]);
 
-  // Extract latitude and longitude from place details
+  // Extract latitude and longitude from place details or parsed location
   const getCoordinatesFromPlace = () => {
+    // First, try to get from fetched place details
     if (placeDetails?.location?.coordinates) {
       // GeoJSON format: [longitude, latitude]
+      console.log("📍 Using coordinates from place details:", placeDetails.location.coordinates);
       return {
         latitude: placeDetails.location.coordinates[1],
         longitude: placeDetails.location.coordinates[0]
       };
     }
     
-    // Fallback to parsed address if available
-    try {
-      const parsedAddr = typeof address === "string" ? JSON.parse(address) : address;
-      if (parsedAddr?.latitude && parsedAddr?.longitude) {
-        return {
-          latitude: parseFloat(parsedAddr.latitude),
-          longitude: parseFloat(parsedAddr.longitude)
-        };
-      }
-    } catch (e) {
-      // Ignore parsing errors
+    // Second, try parsed location from params
+    if (parsedLocation?.coordinates && Array.isArray(parsedLocation.coordinates)) {
+      console.log("📍 Using coordinates from params location:", parsedLocation.coordinates);
+      return {
+        latitude: parsedLocation.coordinates[1],
+        longitude: parsedLocation.coordinates[0]
+      };
     }
     
-    // Default coordinates
+    // Third, try parsed address if available
+    if (parsedAddress?.latitude && parsedAddress?.longitude) {
+      console.log("📍 Using coordinates from address:", parsedAddress);
+      return {
+        latitude: parseFloat(String(parsedAddress.latitude)),
+        longitude: parseFloat(String(parsedAddress.longitude))
+      };
+    }
+    
+    // Default to Colombo, Sri Lanka coordinates
+    console.log("⚠️ Using default coordinates (Colombo, Sri Lanka)");
     return {
-      latitude: 37.7749,
-      longitude: -122.4194
+      latitude: 6.9271,
+      longitude: 79.8612
     };
   };
 
@@ -191,6 +291,42 @@ export default function PlaceMoreDetails() {
 
   const formattedAddress = formatAddress();
 
+  // Handle phone call
+  const handlePhoneCall = async (phoneNumber: string) => {
+    const phoneNum = Array.isArray(phoneNumber) ? phoneNumber[0] : phoneNumber;
+    // Remove any spaces, dashes, or special characters except +
+    const cleanPhone = phoneNum.replace(/[^\d+]/g, '');
+    
+    const phoneUrl = Platform.OS === 'ios' ? `telprompt:${cleanPhone}` : `tel:${cleanPhone}`;
+    
+    try {
+      const supported = await Linking.canOpenURL(phoneUrl);
+      
+      if (supported) {
+        await Linking.openURL(phoneUrl);
+      } else {
+        // Show alert with phone number - simple version without clipboard
+        Alert.alert(
+          'Contact Number',
+          `📞 ${phoneNum}\n\nPhone dialer is not available on this device.\n\nThis happens on emulators/simulators. Please test on a physical device to make calls.`,
+          [
+            {
+              text: 'OK'
+            }
+          ]
+        );
+      }
+    } catch (err) {
+      console.error('Error opening phone dialer:', err);
+      // Show the phone number in an alert as fallback
+      Alert.alert(
+        'Contact Number',
+        `📞 ${phoneNum}\n\nUnable to open phone dialer. Please note this number.`,
+        [{ text: 'OK' }]
+      );
+    }
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -199,6 +335,9 @@ export default function PlaceMoreDetails() {
       </View>
     );
   }
+
+  // Remove the error screen - now we show data even if API fails
+  // if (error) { ... }
 
   return (
     <>
@@ -308,7 +447,13 @@ export default function PlaceMoreDetails() {
               {/* Guide-specific information */}
               {isGuide && (
                 <View style={styles.guideInfoSection}>
-                  {phone && renderInfoCard("call-outline", "Contact", Array.isArray(phone) ? phone[0] : phone, "#4facfe")}
+                  {phone && renderInfoCard(
+                    "call-outline", 
+                    "Contact", 
+                    Array.isArray(phone) ? phone[0] : phone, 
+                    "#4facfe",
+                    () => handlePhoneCall(Array.isArray(phone) ? phone[0] : phone)
+                  )}
                   {gender && renderInfoCard("person-outline", "Gender", Array.isArray(gender) ? gender[0] : gender, "#f093fb")}
                   {parsedLanguages && renderInfoCard(
                     "language-outline", 
@@ -320,7 +465,7 @@ export default function PlaceMoreDetails() {
               )}
 
               {/* Address Information */}
-              {(parsedAddress.street || parsedAddress.city || parsedAddress.state) && (
+              {(parsedAddress.street || parsedAddress.city || parsedAddress.state || formattedAddress) && (
                 <View style={styles.addressSection}>
                   <View style={styles.addressHeader}>
                     <Ionicons name="location-outline" size={20} color="#667eea" />
@@ -336,15 +481,28 @@ export default function PlaceMoreDetails() {
                     {parsedAddress.state && (
                       <Text style={styles.addressText}>{parsedAddress.state}</Text>
                     )}
+                    {!parsedAddress.street && !parsedAddress.city && !parsedAddress.state && formattedAddress && (
+                      <Text style={styles.addressText}>{formattedAddress}</Text>
+                    )}
                   </View>
                   
-                  {/* Map Component */}
-                  <MapComponent 
-                    latitude={latitude}
-                    longitude={longitude}
-                    address={formattedAddress}
-                    placeName={Array.isArray(name) ? name[0] : name}
-                  />
+                  {/* Map Component - Always show with available coordinates */}
+                  <View style={styles.mapContainer}>
+                    <MapComponent 
+                      latitude={latitude}
+                      longitude={longitude}
+                      address={formattedAddress || "Location"}
+                      placeName={Array.isArray(name) ? name[0] : name || "Place"}
+                    />
+                    {latitude === 6.9271 && longitude === 79.8612 && (
+                      <View style={styles.mapWarning}>
+                        <Ionicons name="information-circle" size={16} color="#ff9800" />
+                        <Text style={styles.mapWarningText}>
+                          Showing approximate location (Colombo)
+                        </Text>
+                      </View>
+                    )}
+                  </View>
                 </View>
               )}
             </View>
@@ -359,45 +517,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f8f9fa',
-  },
-  header: {
-    paddingBottom: 0,
-    borderBottomLeftRadius: 10,
-    borderBottomRightRadius: 20,
-    shadowColor: '#000',
-  },
-  headerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 15,
-    paddingTop: 10,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#fff',
-  },
-  headerRight: {
-    flexDirection: 'row',
-  },
-  headerButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: 10,
-   
   },
   scrollView: {
     flex: 1,
@@ -437,7 +556,6 @@ const styles = StyleSheet.create({
     right: 15,
     borderRadius: 20,
     overflow: 'hidden',
-    
   },
   guideBadgeGradient: {
     flexDirection: 'row',
@@ -570,46 +688,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     marginBottom: 4,
   },
-  actionSection: {
-    marginTop: 10,
-  },
-  primaryButton: {
-    borderRadius: 16,
-    overflow: 'hidden',
-    marginBottom: 15,
-  },
-  buttonGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-  },
-  primaryButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 8,
-  },
-  secondaryButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  secondaryButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#f8f9fa',
-    paddingVertical: 14,
-    borderRadius: 12,
-    marginHorizontal: 5,
-  },
-  secondaryButtonText: {
-    color: '#764ba2',
-    fontSize: 14,
-    fontWeight: '600',
-    marginLeft: 6,
-  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -621,5 +699,21 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#636e72',
   },
-  
+  mapContainer: {
+    marginTop: 15,
+  },
+  mapWarning: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff3cd',
+    padding: 12,
+    borderRadius: 10,
+    marginTop: 10,
+  },
+  mapWarningText: {
+    fontSize: 13,
+    color: '#856404',
+    marginLeft: 8,
+    flex: 1,
+  },
 });

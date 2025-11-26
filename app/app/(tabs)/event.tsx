@@ -240,8 +240,8 @@ export default function EventScreen() {
                         <Text style={styles.priceValue}>FREE</Text>
                       </View>
                       <TouchableOpacity style={styles.viewButton}>
-                        <Text style={styles.viewButtonText}>View Details</Text>
-                        <Ionicons name="chevron-forward" size={16} color="#7C3AED" />
+                        {/* <Text style={styles.viewButtonText}>View Details</Text> */}
+                        {/* <Ionicons name="chevron-forward" size={16} color="#7C3AED" /> */}
                       </TouchableOpacity>
                     </View>
                   </View>

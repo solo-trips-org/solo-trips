@@ -30,7 +30,6 @@ const TRANSPORT_MODES = [
   { id: "bus", label: "Bus", icon: "bus", capacity: { min: 7, max: 50, recommended: 15 } },
 ];
 
-// ---------------------------
 // Types
 // ---------------------------
 interface Place {
@@ -112,7 +111,7 @@ export default function PlannerScreen() {
   const insets = useSafeAreaInsets();
   const [wayPoints, setWayPoints] = useState<string[]>([]);
   const [members, setMembers] = useState("1");
-  const [transportMode, setTransportMode] = useState("car");
+  const [transportMode, setTransportMode] = useState("bike");
   const [places, setPlaces] = useState<Place[]>([]);
   const [filteredPlaces, setFilteredPlaces] = useState<Place[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -157,23 +156,39 @@ export default function PlannerScreen() {
     return TRANSPORT_MODES.find(m => m.id === transportMode)?.capacity || { min: 1, max: 50, recommended: 4 };
   };
 
-  // Auto-suggest transport based on number of travelers
+  // Auto-suggest transport based on number of travelers with visual feedback
   useEffect(() => {
     const count = parseInt(members, 10);
     if (count && count > 0) {
+      let suggestedMode = transportMode;
+      
       if (count === 1) {
-        setTransportMode("bike");
+        suggestedMode = "bike";
       } else if (count >= 2 && count <= 3) {
-        setTransportMode("threewheeler");
+        suggestedMode = "threewheeler";
       } else if (count >= 4 && count <= 6) {
-        setTransportMode("car");
+        suggestedMode = "car";
       } else if (count >= 7) {
-        setTransportMode("bus");
+        suggestedMode = "bus";
+      }
+      
+      // Only update if suggestion is different from current mode
+      if (suggestedMode !== transportMode) {
+        setTransportMode(suggestedMode);
+        
+        // Show a brief notification
+        const modeName = TRANSPORT_MODES.find(m => m.id === suggestedMode)?.label;
+        Alert.alert(
+          "🚗 Transport Suggestion",
+          `For ${count} traveler${count > 1 ? 's' : ''}, we recommend: ${modeName}`,
+          [{ text: "OK" }],
+          { cancelable: true }
+        );
       }
     }
   }, [members]);
 
-  // Update traveler count when transport mode changes
+  // Update traveler count when transport mode is manually changed
   const handleTransportChange = (newMode: string) => {
     const selectedTransport = TRANSPORT_MODES.find(m => m.id === newMode);
     if (selectedTransport) {
@@ -183,18 +198,35 @@ export default function PlannerScreen() {
     }
   };
 
-  // Validate traveler count against transport capacity
+  // Validate traveler count against transport capacity with auto-switching
   const handleMembersChange = (text: string) => {
     const numericValue = text.replace(/[^0-9]/g, "");
+    
+    // Allow empty input
+    if (numericValue === "") {
+      setMembers("");
+      return;
+    }
+    
     const count = parseInt(numericValue, 10);
     const capacity = getCurrentCapacity();
 
     if (count > capacity.max) {
-      Alert.alert(
-        "Capacity Exceeded",
-        `${TRANSPORT_MODES.find(m => m.id === transportMode)?.label} can accommodate maximum ${capacity.max} travelers. Please choose a different transport mode for larger groups.`
-      );
-      setMembers(String(capacity.max));
+      // Auto-switch to appropriate transport
+      if (count >= 7) {
+        setTransportMode("bus");
+        setMembers(numericValue);
+        Alert.alert(
+          "🚌 Transport Auto-Switched",
+          `Switched to Bus for ${count} travelers!`
+        );
+      } else {
+        Alert.alert(
+          "Capacity Exceeded",
+          `${TRANSPORT_MODES.find(m => m.id === transportMode)?.label} can accommodate maximum ${capacity.max} travelers.`
+        );
+        setMembers(String(capacity.max));
+      }
     } else {
       setMembers(numericValue);
     }
@@ -394,7 +426,7 @@ export default function PlannerScreen() {
     setTripResults(null);
     setWayPoints([]);
     setMembers("1");
-    setTransportMode("car");
+    setTransportMode("bike");
     setStartDate(startOfDay(new Date()));
     setEndDate(startOfDay(new Date(Date.now() + 86400000)));
   };
@@ -519,12 +551,29 @@ export default function PlannerScreen() {
               </View>
             )}
 
-            {/* Transport Mode Selection - Now First */}
+            {/* Number of Travelers - Now First */}
+            <Text style={styles.label}>Number of Travelers *</Text>
+            <View style={styles.inputHint}>
+              <FontAwesome5 name="info-circle" size={12} color="#a78bfa" />
+              <Text style={styles.inputHintText}>
+                Enter travelers count - we'll suggest the best transport!
+              </Text>
+            </View>
+            <TextInput
+              style={styles.inputBox}
+              keyboardType="numeric"
+              value={members}
+              onChangeText={handleMembersChange}
+              placeholder="Enter number of travelers"
+              placeholderTextColor="#8b7aa8"
+            />
+
+            {/* Transport Mode Selection - Now Second */}
             <Text style={styles.label}>Transportation Mode *</Text>
             <View style={styles.transportHint}>
-              <FontAwesome5 name="info-circle" size={12} color="#a78bfa" />
+              <FontAwesome5 name="lightbulb" size={12} color="#fbbf24" />
               <Text style={styles.transportHintText}>
-                Select your transport to auto-suggest traveler capacity
+                Auto-suggested based on traveler count (you can change it)
               </Text>
             </View>
             <View style={styles.transportContainer}>
@@ -563,23 +612,6 @@ export default function PlannerScreen() {
                 </TouchableOpacity>
               ))}
             </View>
-
-            {/* Number of Travelers - Now Second */}
-            <Text style={styles.label}>Number of Travelers *</Text>
-            <View style={styles.capacityInfo}>
-              <FontAwesome5 name="users" size={14} color="#a78bfa" />
-              <Text style={styles.capacityInfoText}>
-                {TRANSPORT_MODES.find(m => m.id === transportMode)?.label} capacity: {getCurrentCapacity().min}-{getCurrentCapacity().max === 50 ? '50+' : getCurrentCapacity().max} travelers
-              </Text>
-            </View>
-            <TextInput
-              style={styles.inputBox}
-              keyboardType="numeric"
-              value={members}
-              onChangeText={handleMembersChange}
-              placeholder="Enter number of travelers"
-              placeholderTextColor="#8b7aa8"
-            />
 
             {/* Dates */}
             <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 10 }}>
@@ -953,6 +985,20 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     fontSize: 14,
   },
+  inputHint: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "rgba(167,139,250,0.1)",
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  inputHintText: {
+    color: "#a78bfa",
+    fontSize: 12,
+    flex: 1,
+  },
 
   // Transport Mode Styles
   transportContainer: {
@@ -999,15 +1045,18 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "rgba(167,139,250,0.1)",
+    backgroundColor: "rgba(251,191,36,0.15)",
     padding: 10,
     borderRadius: 8,
     marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "rgba(251,191,36,0.3)",
   },
   transportHintText: {
-    color: "#a78bfa",
+    color: "#fbbf24",
     fontSize: 12,
     flex: 1,
+    fontWeight: "600",
   },
   recommendedBadge: {
     position: "absolute",
@@ -1024,20 +1073,6 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 12,
     fontWeight: "700",
-  },
-  capacityInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    backgroundColor: "rgba(167,139,250,0.1)",
-    padding: 10,
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  capacityInfoText: {
-    color: "#a78bfa",
-    fontSize: 12,
-    flex: 1,
   },
 
   // Search styles
