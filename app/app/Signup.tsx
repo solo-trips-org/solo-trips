@@ -135,9 +135,9 @@ export default function Signup() {
           <Text style={styles.buttonText}>Sign Up</Text>
         </TouchableOpacity>
 
-        <Text style={styles.orText}>or</Text>
+        {/* <Text style={styles.orText}>or</Text> */}
 
-        <TouchableOpacity
+        {/* <TouchableOpacity
           style={styles.googleBtn}
           onPress={() => console.log("Google button pressed")}
         >
@@ -148,7 +148,7 @@ export default function Signup() {
             />
             <Text style={styles.googleText}>Continue with Google</Text>
           </View>
-        </TouchableOpacity>
+        </TouchableOpacity> */}
 
         <Text style={styles.termsText}>
           By continuing, you agree to our{" "}
