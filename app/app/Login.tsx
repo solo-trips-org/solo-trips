@@ -174,12 +174,12 @@ export default function Login() {
 
         <Text style={styles.orText}>or</Text>
 
-        <TouchableOpacity style={styles.googleBtn}>
+        {/* <TouchableOpacity style={styles.googleBtn}>
           <View style={styles.googleContent}>
             <Image source={require('../assets/google.png')} style={styles.googleIcon} />
             <Text style={styles.googleText}>Continue with Google</Text>
           </View>
-        </TouchableOpacity>
+        </TouchableOpacity> */}
 
         <View style={styles.signupContainer}>
           <Text style={styles.accountText}>Don't have an account? </Text>
